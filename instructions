@@ -1,0 +1,6 @@
+After forking or cloning the repo into local 
+then, you need to create a virtual environment and install the requirements.txt 
+
+To install the packages, use the following command in your command prompt 
+
+pip install -r requirements.txt 
