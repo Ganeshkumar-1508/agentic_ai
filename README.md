@@ -77,4 +77,6 @@ analysis, and visualization tools to support more advanced document and intellig
 capabilities.
 
 **FLOW DIAGRAM:**
-<img width="553" height="284" alt="image (1)" src="https://github.com/user-attachments/assets/b428595a-2d7f-4147-a25f-401249f6c516" />
+
+
+<img width="553" height="284" style="text-align:center;" alt="image (1)" src="https://github.com/user-attachments/assets/b428595a-2d7f-4147-a25f-401249f6c516" />
