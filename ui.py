@@ -67,6 +67,73 @@ with col2:
 if st.session_state.attached_doc:
     st.info(f"📎 Attached: **{st.session_state.attached_doc}**")
 
+# Download section
+if st.session_state.messages:
+    st.divider()
+    st.subheader("📥 Download Generated Document")
+    
+    col_download1, col_download2, col_download3 = st.columns(3)
+    
+    with col_download1:
+        if st.button("📄 Download as PDF", use_container_width=True):
+            with st.spinner("Generating PDF..."):
+                payload = {"format": "pdf"}
+                response = requests.post(
+                    f"{FASTAPI_URL}/generate-document",
+                    json=payload
+                )
+                
+                if response.status_code == 200:
+                    st.download_button(
+                        label="Download PDF",
+                        data=response.content,
+                        file_name="generated_document.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                else:
+                    st.error("Failed to generate PDF")
+    
+    with col_download2:
+        if st.button("📝 Download as DOCX", use_container_width=True):
+            with st.spinner("Generating DOCX..."):
+                payload = {"format": "docx"}
+                response = requests.post(
+                    f"{FASTAPI_URL}/generate-document",
+                    json=payload
+                )
+                
+                if response.status_code == 200:
+                    st.download_button(
+                        label="Download DOCX",
+                        data=response.content,
+                        file_name="generated_document.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True
+                    )
+                else:
+                    st.error("Failed to generate DOCX")
+    
+    with col_download3:
+        if st.button("📋 Download as TXT", use_container_width=True):
+            with st.spinner("Generating TXT..."):
+                payload = {"format": "txt"}
+                response = requests.post(
+                    f"{FASTAPI_URL}/generate-document",
+                    json=payload
+                )
+                
+                if response.status_code == 200:
+                    st.download_button(
+                        label="Download TXT",
+                        data=response.content,
+                        file_name="generated_document.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
+                else:
+                    st.error("Failed to generate TXT")
+
 if prompt:
     st.session_state.messages.append(
         {"role": "user", "content": prompt}
