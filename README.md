@@ -65,6 +65,7 @@ interface.
   
 **Use Case:**
 
+
   This system allows users to generate professional reports on any topic by simply providing 
 a subject, reducing the time and effort required for manual research, analysis, and 
 document creation.
@@ -74,3 +75,6 @@ document creation.
   The system can be extended in the future by adding more AI agents such as OCR, data 
 analysis, and visualization tools to support more advanced document and intelligence 
 capabilities.
+
+**FLOW DIAGRAM:**
+<img width="553" height="284" alt="image (1)" src="https://github.com/user-attachments/assets/b428595a-2d7f-4147-a25f-401249f6c516" />
