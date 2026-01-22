@@ -15,7 +15,7 @@ llm = LLM(
 )
 llm_2 = LLM(
     provider="openai",
-    model="nvidia/nemotron-nano-12b-v2-vl",
+    model="nvidia/nemotron-3-nano-30b-a3b",
     api_key=os.getenv("OPENAI_API_KEY"),
     base_url=os.getenv("OPENAI_BASE_URL"),
     temperature=0.2,
@@ -51,7 +51,7 @@ structuring_agent = Agent(
     role="Report Architect",
     goal="Organize the insights into a professional report structure",
     backstory="You design clean, logical report outlines",
-    llm=llm,
+    llm=llm_2,
     verbose=True
 )
 
