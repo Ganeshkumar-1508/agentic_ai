@@ -9,8 +9,8 @@ load_dotenv()
 llm = LLM(
     provider="openai",
     model="meta/llama-3.1-8b-instruct",
-    api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("OPENAI_BASE_URL"),
+    # api_key=os.getenv("OPENAI_API_KEY"),
+    # base_url=os.getenv("OPENAI_BASE_URL"),
     temperature=0.2,
     max_tokens=800
 )
