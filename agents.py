@@ -12,7 +12,20 @@ llm = LLM(
     # api_key=os.getenv("OPENAI_API_KEY"),
     # base_url=os.getenv("OPENAI_BASE_URL"),
     temperature=0.2,
-    max_tokens=800
+)
+llm_2 = LLM(
+    provider="openai",
+    model="nvidia/nemotron-3-nano-30b-a3b",
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("OPENAI_BASE_URL"),
+    temperature=0.2,
+)
+llm_3 = LLM(
+    provider="openai",
+    model="qwen/qwen3-next-80b-a3b-instruct",
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("OPENAI_BASE_URL"),
+    temperature=0.2,
 )
 
 search_tool = SerperDevTool(n_tokens=2048)
@@ -22,7 +35,7 @@ research_agent = Agent(
     goal="Search the web and collect factual information with sources",
     backstory="Expert web researcher",
     tools=[search_tool],
-    llm=llm,
+    llm=llm_3,
     verbose=True
 )
 
@@ -30,7 +43,7 @@ analysis_agent = Agent(
     role="Data Analyst",
     goal="Analyze research data and extract key insights",
     backstory="You turn raw information into insights",
-    llm=llm,
+    llm=llm_2,
     verbose=True
 )
 
@@ -38,7 +51,7 @@ structuring_agent = Agent(
     role="Report Architect",
     goal="Organize the insights into a professional report structure",
     backstory="You design clean, logical report outlines",
-    llm=llm,
+    llm=llm_2,
     verbose=True
 )
 
