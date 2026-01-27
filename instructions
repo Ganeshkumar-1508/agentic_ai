@@ -1,6 +1,23 @@
 After forking or cloning the repo into local 
 then, you need to create a virtual environment and install the requirements.txt 
 
+create a .env there you give api keys where it will needed 
+
 To install the packages, use the following command in your command prompt 
 
 pip install -r requirements.txt 
+
+
+Run the api.py to run the backend 
+
+python api.py file after running
+
+open a new CLI terminal 
+
+Run a Command in  command prompt streamlit run ui.py 
+
+after it will open a user interface area 
+
+There you can interact with ai agents and whatever query your asking it will respond it may query or document you are mentioning 
+
+
