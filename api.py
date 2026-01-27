@@ -40,6 +40,6 @@ async def process_query(req: QueryRequest):
     result = generate_report(topic)
 
     return {
-        "result": result.raw,
+        "result": result.raw, 
         "source": None
     }
