@@ -4,8 +4,8 @@ import shutil
 import os
 import uvicorn
 from io import BytesIO
-
-from main import generate_report
+from crew import crew
+from cache.cache_manager import get_from_cache, store_in_cache, delete_from_cache
 
 app = FastAPI()
 
@@ -22,6 +22,32 @@ class DocumentRequest(BaseModel):
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+
+# ==================== GENERATE REPORT FUNCTION ====================
+def generate_report(topic: str):
+    """
+    Generate a report for the given topic using cached data if available.
+    
+    This function:
+    1. Checks if the answer exists in cache
+    2. If found in cache, returns cached answer immediately
+    3. If not found, fetches fresh data from web using CrewAI
+    4. Stores the new answer in cache for future use
+    """
+    # Check cache first
+    cached_answer = get_from_cache(topic)
+    
+    if cached_answer:
+        return {"output": cached_answer, "from_cache": True}
+    
+    # If cache miss, fetch from web
+    result = crew.kickoff(inputs={"topic": topic})
+    
+    # Store in cache for future use
+    result_str = str(result.raw if hasattr(result, 'raw') else result)
+    store_in_cache(topic, result_str)
+    
+    return {"output": result_str, "from_cache": False}
 
 # ---------------------------
 # document upload (optional)
@@ -42,14 +68,24 @@ async def process_document(file: UploadFile = File(...)):
 # ---------------------------
 @app.post("/process-query")
 async def process_query(req: QueryRequest):
-    topic = req.query
-
-    result = generate_report(topic)
-
-    return {
-        "result": result.raw,
-        "source": None
-    }
+    try:
+        topic = req.query
+        
+        # Generate report using cache-first approach
+        result = generate_report(topic)
+        
+        return {
+            "result": result["output"],
+            "from_cache": result["from_cache"],
+            "source": None
+        }
+    except Exception as e:
+        return {
+            "result": f"Error: {str(e)}",
+            "from_cache": False,
+            "source": None,
+            "error": True
+        }
 
 
 # ---------------------------

@@ -63,13 +63,13 @@ def generate_pdf_from_conversation(messages):
     if isinstance(pdf_bytes, bytearray):
         return bytes(pdf_bytes)
     return pdf_bytes
-
+# page configuration
 st.set_page_config(
     page_title="AI Agent Assistant",
     page_icon="🤖",
     layout="wide"
 )
-
+# header
 st.title("🤖 AI Agent Assistant")
 st.caption("Chat with AI agents using documents or Query topics")
 
@@ -77,7 +77,7 @@ st.caption("Chat with AI agents using documents or Query topics")
 @st.cache_resource
 def check_backend_health():
     try:
-        response = requests.get(f"{FASTAPI_URL}/docs", timeout=2)
+        response = requests.get(f"{FASTAPI_URL}/docs", timeout=3)
         return True
     except (ConnectionError, requests.exceptions.Timeout):
         return False
@@ -107,12 +107,12 @@ if "attached_doc" not in st.session_state:
 if "doc_processed" not in st.session_state:
     st.session_state.doc_processed = False
 
-# ==================== FIXED INPUT AREA ====================
+# ==================== CHAT INPUT AREA ====================
 st.divider()
 st.subheader("📝 Chat & Document Area")
 
 col1, col2 = st.columns([1, 14], gap="small")
-
+# Document uploader
 with col1:
     with st.popover("➕"):
         uploaded_file = st.file_uploader(
