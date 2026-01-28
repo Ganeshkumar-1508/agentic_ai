@@ -3,7 +3,7 @@ from crewai import Crew
 from tasks import research_task, analysis_task, structuring_task, writing_task
 
 crew = Crew(
-    verbose=False,
+    # verbose=False,
     # tracing=False,
     # agents=[
     #     research_task.agent,
@@ -16,5 +16,7 @@ crew = Crew(
         analysis_task,
         structuring_task,
         writing_task
-    ]
+    ],
+    verbose=True
 )
+
