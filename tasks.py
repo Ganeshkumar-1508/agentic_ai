@@ -1,52 +1,53 @@
 from crewai import Task
 from agents import research_agent, analysis_agent, structuring_agent, writing_agent
 
+
+# research_task = Task(
+#     description="Search the web for {topic}. Return key facts and source links.",
+#     expected_output="Facts with sources",
+#     agent=research_agent
+# )
+
+# analysis_task = Task(
+#     description="Analyze the research and extract 5 key insights.",
+#     expected_output="Bullet list of insights",
+#     agent=analysis_agent
+# )
+
+# structuring_task = Task(
+#     description="Create a professional report outline from the insights.",
+#     expected_output="Structured headings",
+#     agent=structuring_agent
+# )
+
+# writing_task = Task(
+#     description="Write a short professional report based on the structure.",
+#     expected_output="Final report",
+#     agent=writing_agent
+# )
+
+
 research_task = Task(
-    description="Search the web for the user's query: {topic}",
-    expected_output="Raw web data",
+    description="Search the web for {topic}. Find only the most relevant facts and key sources. Keep it brief.",
+    expected_output="2-3 key facts with sources",
     agent=research_agent
 )
 
 analysis_task = Task(
-    description="Analyze and extract only relevant information from research data",
-    expected_output="Filtered insights",
+    description="Extract only the most important insights from the research. Focus on what matters most to answer the question.",
+    expected_output="3 key insights (bullet points only)",
     agent=analysis_agent
 )
 
 structuring_task = Task(
-    description="""
-    Determine the SINGLE correct output type based on intent: {intent}
-
-    Allowed values:
-    - CODE
-    - FLOW
-    - COMPARISON
-    - REPORT
-    - GENERAL
-
-    Return ONLY the chosen type.
-    """,
-    expected_output="One intent type",
+    description="Create a simple, logical flow to present the answer. Don't use formal report structure - just organize the main points.",
+    expected_output="Simple outline with 2-3 main points",
     agent=structuring_agent
 )
 
 writing_task = Task(
-    description="""
-    Generate the FINAL output.
-
-    Intent: {intent}
-
-    RULES (MANDATORY):
-    - If intent == CODE → output ONLY code (no explanation, no markdown)
-    - If intent == FLOW → output ONLY step-by-step arrows
-    - If intent == COMPARISON → output ONLY a table
-    - If intent == REPORT → structured report
-    - If intent == GENERAL → concise answer
-
-    DO NOT include multiple formats.
-    DO NOT add explanations unless intent == REPORT.
-    """,
-    expected_output="Final answer for the user",
+    description="Write a conversational, clear answer like ChatGPT would - friendly and easy to understand. Keep it concise (2-4 paragraphs max). Only use longer format if the topic truly requires it. Avoid formal report structure.",
+    expected_output="Concise, conversational answer (2-4 paragraphs)",
     agent=writing_agent
 )
 
