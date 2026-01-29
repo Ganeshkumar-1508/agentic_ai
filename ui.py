@@ -3,7 +3,6 @@ import requests
 from requests.exceptions import ConnectionError
 from fpdf import FPDF
 from io import BytesIO
-
 FASTAPI_URL = "http://localhost:8000"
 
 

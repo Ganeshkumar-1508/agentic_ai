@@ -1,6 +1,6 @@
 
 from crewai import Crew
-from tasks import research_task, analysis_task, structuring_task, writing_task
+from tasks import research_task, analysis_task, structuring_task, writing_task,code_task,code_research_task  
 
 crew = Crew(
     # verbose=False,
@@ -18,5 +18,19 @@ crew = Crew(
         writing_task
     ],
     verbose=True
+)
+code_crew = Crew(
+    tasks=[code_task],
+    verbose=False
+)
+
+# ===================== EXTENSION: WEB-ASSISTED CODE CREW =====================
+
+code_web_crew = Crew(
+    tasks=[
+        code_research_task,  # web search (context only)
+        code_task            # final code generation
+    ],
+    verbose=False
 )
 

@@ -1,19 +1,47 @@
-from crew import crew
 import time
+from crew import crew, code_web_crew, code_crew
+from intent_detector import detect_intent
+    
+    
+def needs_web_search(user_input: str) -> bool:
+    keywords = [
+        "latest",
+        "best practices",
+        "official",
+        "documentation",
+        "new",
+        "updated"
+    ]
+    text = user_input.lower()
+    return any(k in text for k in keywords)
 
-def detect_intent(text: str) -> str:
-    t = text.lower()
 
-    if any(k in t for k in ["code", "program", "function", "implementation"]):
-        return "CODE"
-    if any(k in t for k in ["flow", "diagram", "workflow", "steps"]):
-        return "FLOW"
-    if any(k in t for k in ["compare", "comparison", "difference"]):
-        return "COMPARISON"
-    if any(k in t for k in ["report", "explain", "analysis"]):
-        return "REPORT"
+def clean_code_output(raw_output: str) -> str:
+    """
+    Cleans LLM output to behave like ChatGPT:
+    - Removes markdown fences
+    - Removes leading language name (java, python, etc.)
+    """
+    output = raw_output.replace("```", "").strip()
+    lines = output.splitlines()
 
-    return "GENERAL"
+    if not lines:
+        return output
+
+    first_line = lines[0].strip().lower()
+
+    language_names = {
+        "java", "python", "javascript", "js",
+        "typescript", "ts", "c", "cpp",
+        "go", "rust", "kotlin", "scala",
+        "php", "ruby"
+    }
+
+    if first_line in language_names:
+        lines = lines[1:]
+
+    return "\n".join(lines).strip()
+
 
 def main():
     print("=== CrewAI Smart Intent-Based Generator ===")
@@ -26,21 +54,40 @@ def main():
             break
 
         intent = detect_intent(user_input)
-        print(f"[Detected Intent → {intent}]")
-
         start = time.time()
 
-        result = crew.kickoff(
-            inputs={
-                "topic": user_input,
-                "intent": intent
-            }
-        )
+        if intent == "CODE":
+            if needs_web_search(user_input):
+                result = code_web_crew.kickoff(
+                    inputs={
+                        "user_request": user_input,
+                        "code_research_summary": ""
+                    }
+                )
+            else:
+                result = code_crew.kickoff(
+                    inputs={
+                        "user_request": user_input,
+                        "code_research_summary": ""
+                    }
+                )
+        else:
+            result = crew.kickoff(
+                inputs={"topic": user_input}
+            )
 
         print("\nFINAL OUTPUT\n")
-        print(result)
+
+        if intent == "CODE":
+            cleaned_output = clean_code_output(str(result))
+            print(cleaned_output)
+        else:
+            print(result)
 
         print(f"\nExecution time: {time.time() - start:.2f} seconds")
 
+
 if __name__ == "__main__":
     main()
+
+
