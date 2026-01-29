@@ -1,55 +1,71 @@
 from crewai import Task
-from agents import research_agent, analysis_agent, structuring_agent, writing_agent
+from agents import research_agent, analysis_agent, structuring_agent,writing_agent,code_agent, code_research_agent 
+   
 
 
-# research_task = Task(
-#     description="Search the web for {topic}. Return key facts and source links.",
-#     expected_output="Facts with sources",
-#     agent=research_agent
-# )
-
-# analysis_task = Task(
-#     description="Analyze the research and extract 5 key insights.",
-#     expected_output="Bullet list of insights",
-#     agent=analysis_agent
-# )
-
-# structuring_task = Task(
-#     description="Create a professional report outline from the insights.",
-#     expected_output="Structured headings",
-#     agent=structuring_agent
-# )
-
-# writing_task = Task(
-#     description="Write a short professional report based on the structure.",
-#     expected_output="Final report",
-#     agent=writing_agent
-# )
-
+    
+# ===================== REPORT PIPELINE TASKS =====================
 
 research_task = Task(
-    description="Search the web for {topic}. Find only the most relevant facts and key sources. Keep it brief.",
-    expected_output="2-3 key facts with sources",
+    description="Search the web for {topic}. Return key facts and source links.",
+    expected_output="Facts with sources",
     agent=research_agent
 )
 
 analysis_task = Task(
-    description="Extract only the most important insights from the research. Focus on what matters most to answer the question.",
-    expected_output="3 key insights (bullet points only)",
+    description="Analyze the research and extract 5 key insights.",
+    expected_output="Bullet list of insights",
     agent=analysis_agent
 )
 
 structuring_task = Task(
-    description="Create a simple, logical flow to present the answer. Don't use formal report structure - just organize the main points.",
-    expected_output="Simple outline with 2-3 main points",
+    description="Create a professional report outline from the insights.",
+    expected_output="Structured headings",
     agent=structuring_agent
 )
 
 writing_task = Task(
-    description="Write a conversational, clear answer like ChatGPT would - friendly and easy to understand. Keep it concise (2-4 paragraphs max). Only use longer format if the topic truly requires it. Avoid formal report structure.",
-    expected_output="Concise, conversational answer (2-4 paragraphs)",
+    description="Write a short professional report based on the structure.",
+    expected_output="Final report",
     agent=writing_agent
 )
+
+# ===================== CODE PIPELINE TASKS =====================
+
+#  CODE RESEARCH (WEB)
+code_research_task = Task(
+    description=(
+        "Search official documentation or trusted sources for:\n"
+        "{user_request}\n\n"
+        "Return a concise technical summary for internal use only.\n"
+        "DO NOT include code."
+    ),
+    expected_output="Technical summary (no code)",
+    agent=code_research_agent,
+    output_key="code_research_summary" 
+)
+
+#  CODE GENERATION (LLM)
+code_task = Task(
+    description=(
+        "You are a code generator.\n\n"
+        "STRICT RULES (DO NOT BREAK):\n"
+        "- Output RAW executable source code\n"
+        "- Automatically infer the programming language from the user request\n"
+        "- Do NOT use markdown\n"
+        "- Do NOT explain anything\n"
+        "- Do NOT add extra text\n\n"
+        "Context (may be empty):\n"
+        "{code_research_summary}\n\n"
+        "User request:\n"
+        "{user_request}\n\n"
+        "The output must start directly with valid source code."
+    ),
+    expected_output="Executable source code only",
+    agent=code_agent
+)
+
+
 
 
 
