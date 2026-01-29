@@ -28,7 +28,8 @@ llm = LLM(
 #     max_tokens=1000
 # )
 
-search_tool = SerperDevTool()
+search_tool = SerperDevTool(num_results=2,n_tokens=1024 )
+    
 
 research_agent = Agent(
     role="Research Specialist",
