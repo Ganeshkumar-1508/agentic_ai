@@ -1,93 +1,38 @@
 import time
-from crew import crew, code_web_crew, code_crew
-from intent_detector import detect_intent
-    
-    
-def needs_web_search(user_input: str) -> bool:
-    keywords = [
-        "latest",
-        "best practices",
-        "official",
-        "documentation",
-        "new",
-        "updated"
-    ]
-    text = user_input.lower()
-    return any(k in text for k in keywords)
-
-
-def clean_code_output(raw_output: str) -> str:
-    """
-    Cleans LLM output to behave like ChatGPT:
-    - Removes markdown fences
-    - Removes leading language name (java, python, etc.)
-    """
-    output = raw_output.replace("```", "").strip()
-    lines = output.splitlines()
-
-    if not lines:
-        return output
-
-    first_line = lines[0].strip().lower()
-
-    language_names = {
-        "java", "python", "javascript", "js",
-        "typescript", "ts", "c", "cpp",
-        "go", "rust", "kotlin", "scala",
-        "php", "ruby"
-    }
-
-    if first_line in language_names:
-        lines = lines[1:]
-
-    return "\n".join(lines).strip()
-
+from agents import client, SYSTEM_PROMPT, MODEL_NAME
 
 def main():
-    print("=== CrewAI Smart Intent-Based Generator ===")
+    print("=== Single-Agent LLM Application ===")
+    print("Type 'quit' to exit.\n")
+
+    # Conversation memory
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT}
+    ]
 
     while True:
-        user_input = input("\nEnter your question (or 'q' / 'quit'): ").strip()
-
-        if user_input.lower() in ("q", "quit"):
-            print("Exiting. Goodbye!")
+        user_input = input("You: ").strip()
+        if user_input.lower() in ("quit", "exit", "q"):
+            print("Assistant: Goodbye ")
             break
 
-        intent = detect_intent(user_input)
         start = time.time()
 
-        if intent == "CODE":
-            if needs_web_search(user_input):
-                result = code_web_crew.kickoff(
-                    inputs={
-                        "user_request": user_input,
-                        "code_research_summary": ""
-                    }
-                )
-            else:
-                result = code_crew.kickoff(
-                    inputs={
-                        "user_request": user_input,
-                        "code_research_summary": ""
-                    }
-                )
-        else:
-            result = crew.kickoff(
-                inputs={"topic": user_input}
-            )
+        messages.append({"role": "user", "content": user_input})
 
-        print("\nFINAL OUTPUT\n")
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=messages,
+            temperature=0.3
+        )
 
-        if intent == "CODE":
-            cleaned_output = clean_code_output(str(result))
-            print(cleaned_output)
-        else:
-            print(result)
+        answer = response.choices[0].message.content.strip()
 
-        print(f"\nExecution time: {time.time() - start:.2f} seconds")
+        print("\nAssistant:\n")
+        print(answer)
+        print(f"\n⏱ Time: {time.time() - start:.2f}s\n")
 
+        messages.append({"role": "assistant", "content": answer})
 
 if __name__ == "__main__":
     main()
-
-

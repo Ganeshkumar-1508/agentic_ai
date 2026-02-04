@@ -176,7 +176,7 @@ if prompt:
         with st.spinner("🔍 Generating..."):
             payload = {
                 "query": prompt,
-                "document_context": st.session_state.attached_doc
+                #"document_context": st.session_state.attached_doc
             }
 
             reply = ""
