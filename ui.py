@@ -57,10 +57,7 @@ def generate_pdf_from_conversation(messages):
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(5)
     
-    # Return the PDF as bytes - convert bytearray to bytes
-    pdf_bytes = pdf.output(dest='S')
-    if isinstance(pdf_bytes, bytearray):
-        return bytes(pdf_bytes)
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
     return pdf_bytes
 # page configuration
 st.set_page_config(
@@ -69,8 +66,8 @@ st.set_page_config(
     layout="wide"
 )
 # header
-st.title("🤖 AI Agent Assistant")
-st.caption("Chat with AI agents using documents or Query topics")
+st.title("🤖 Chat with AI Assistant")
+st.caption("Chat with AI by giving a Query")
 
 # Check if backend is running
 @st.cache_resource
@@ -107,62 +104,64 @@ if "doc_processed" not in st.session_state:
     st.session_state.doc_processed = False
 
 # ==================== CHAT INPUT AREA ====================
-st.divider()
-st.subheader("📝 Chat & Document Area")
+#st.divider()
+#st.subheader("📝 Chat with AI Assistant")
 
-col1, col2 = st.columns([1, 14], gap="small")
+#col1, col2 = st.columns([1,50], gap="small")
 # Document uploader
-with col1:
-    with st.popover("➕"):
-        uploaded_file = st.file_uploader(
-            "",
-            type=["pdf", "docx", "txt"],
-            label_visibility="collapsed"
-        )
+# with col1:
+#     with st.popover("➕"):
+#         uploaded_file = st.file_uploader(
+#             "",
+#             type=["pdf", "docx", "txt"],
+#             label_visibility="collapsed"
+#         )
 
-        if uploaded_file and not st.session_state.doc_processed:
-            with st.spinner("Processing document..."):
-                files = {
-                    "file": (uploaded_file.name, uploaded_file, uploaded_file.type)
-                }
+#         if uploaded_file and not st.session_state.doc_processed:
+#             with st.spinner("Processing document..."):
+#                 files = {
+#                     "file": (uploaded_file.name, uploaded_file, uploaded_file.type)
+#                 }
 
-                try:
-                    response = requests.post(
-                        f"{FASTAPI_URL}/process-document",
-                        files=files,
-                        timeout=30
-                    )
+#                 try:
+#                     response = requests.post(
+#                         f"{FASTAPI_URL}/process-document",
+#                         files=files,
+#                         timeout=30
+#                     )
 
-                    if response.status_code == 200:
-                        st.session_state.attached_doc = uploaded_file.name
-                        st.session_state.doc_processed = True
+#                     if response.status_code == 200:
+#                         st.session_state.attached_doc = uploaded_file.name
+#                         st.session_state.doc_processed = True
 
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "content": f"📎 Document **{uploaded_file.name}** attached successfully."
-                        })
+#                         st.session_state.messages.append({
+#                             "role": "assistant",
+#                             "content": f"📎 Document **{uploaded_file.name}** attached successfully."
+#                         })
 
-                        st.rerun()
-                    else:
-                        st.error("Failed to process document")
-                except ConnectionError:
-                    st.error("Cannot connect to backend server. Please ensure the API is running.")
-                except requests.exceptions.Timeout:
-                    st.error("Request timed out. The backend server may be processing slowly.")
+#                         st.rerun()
+#                     else:
+#                         st.error("Failed to process document")
+#                 except ConnectionError:
+#                     st.error("Cannot connect to backend server. Please ensure the API is running.")
+#                 except requests.exceptions.Timeout:
+#                     st.error("Request timed out. The backend server may be processing slowly.")
 
-with col2:
-    prompt = st.chat_input("Ask anything")
+#with col2:
+#    prompt = st.chat_input("Ask anything")
 
 if st.session_state.attached_doc:
     st.info(f"📎 Attached: **{st.session_state.attached_doc}**")
 
 # ==================== MESSAGES AREA ====================
 st.divider()
-st.subheader("💬 Conversation")
+#st.subheader("💬 Conversation")
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        st.markdown(msg["content"])                   
+
+prompt = st.chat_input("Ask anything")
 
 if prompt:
     st.session_state.messages.append(
@@ -208,7 +207,6 @@ if prompt:
             except requests.exceptions.Timeout:
                 st.error("⏱️ Request timed out. The backend server may be processing slowly.")
 
-# ==================== DOWNLOAD SECTION ====================
 if st.session_state.messages:
     st.divider()
     st.subheader("📥 Download Conversation")
@@ -216,18 +214,16 @@ if st.session_state.messages:
     col_download1, col_download2, col_download3, col_download4 = st.columns(4)
     
     with col_download1:
-        if st.button("📄 Download as PDF", use_container_width=True):
-            try:
-                pdf_data = generate_pdf_from_conversation(st.session_state.messages)
-                st.download_button(
-                    label="📥 Download PDF",
-                    data=pdf_data,
-                    file_name="conversation.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.error(f"Error generating PDF: {str(e)}")
+        pdf_data = generate_pdf_from_conversation(st.session_state.messages)
+
+        st.download_button(
+            label="📄 Download as PDF",
+            data=pdf_data,
+            file_name="conversation.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+
     
     with col_download2:
         if st.button("📋 Download as TXT", use_container_width=True):
