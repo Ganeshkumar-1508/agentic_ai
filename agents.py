@@ -1,91 +1,39 @@
 import os
 from dotenv import load_dotenv
-from crewai import Agent, LLM
-from crewai_tools import SerperDevTool
+from openai import OpenAI
 
+# Load env variables ONCE
 load_dotenv()
 
-llm = LLM(
-    provider="openai",
-    model="meta/llama-3.1-8b-instruct",
+MODEL_NAME = os.getenv("MODEL_NAME", "meta/llama-3.1-8b-instruct")
+
+# ---------- LLM CLIENT ----------
+client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("OPENAI_BASE_URL"),
-    temperature=0.2,
-)
-# llm_2 = LLM(
-#     provider="openai",
-#     model="nvidia/nemotron-3-nano-30b-a3b",
-#     api_key=os.getenv("OPENAI_API_KEY"),
-#     base_url=os.getenv("OPENAI_BASE_URL"),
-#     temperature=0.2,
-# )
-# llm_3 = LLM(
-#     provider="openai",
-#     model="qwen/qwen3-next-80b-a3b-instruct",
-#     api_key=os.getenv("OPENAI_API_KEY"),
-#     base_url=os.getenv("OPENAI_BASE_URL"),
-#     temperature=0.2,
-#     max_tokens=1000
-# )
-
-search_tool = SerperDevTool(num_results=2,n_tokens=1024 )
-    
-
-research_agent = Agent(
-    role="Research Specialist",
-    goal="Search the web and collect factual information with sources",
-    backstory="Expert web researcher",
-    tools=[search_tool],
-    llm=llm,
-    verbose=True
+    base_url=os.getenv("OPENAI_BASE_URL")
 )
 
-analysis_agent = Agent(
-    role="Data Analyst",
-    goal="Analyze research data and extract key insights",
-    backstory="You turn raw information into insights",
-    llm=llm,
-    verbose=True
-)
+# ---------- SYSTEM PROMPT ----------
+SYSTEM_PROMPT = """
+You are an adaptive, general-purpose AI assistant.
 
-structuring_agent = Agent(
-    role="Report Architect",
-    goal="Organize the insights into a professional report structure",
-    backstory="You design clean, logical report outlines",
-    llm=llm,
-    verbose=True
-)
+Your responsibility is to intelligently handle any type of user query without relying on hard-coded rules.
 
-writing_agent = Agent(
-    role="Technical Writer",
-    goal="Write a clear and professional final report",
-    backstory="You write concise, high quality reports",
-    llm=llm,
-    verbose=True
-)
+For every user input, you must:
 
-code_research_agent = Agent(
-    role="Code Researcher",
-    goal="Search the web for official documentation and best practices",
-    backstory=(
-        "You search trusted documentation and APIs. "
-        "You summarize findings for internal use only. "
-        "You NEVER output code."
-    ),
-    tools=[search_tool],   # reusing existing Serper tool
-    llm=llm,               # reusing existing LLM
-    verbose=True
-)
-
-code_agent = Agent(
-    role="Code Generator",
-    goal="Generate executable code ONLY",
-    backstory=(
-        "You output ONLY executable code. "
-        "No explanations. "
-        "No markdown. "
-        "No extra text."
-    ),
-    llm=llm,
-    verbose=True
-)
+1. Internally infer the user's intent, context, and expected response type.
+2. Select the most appropriate response strategy dynamically (e.g., explanation, code, report, story, comparison, diagram, or general answer).
+3. Follow widely accepted best practices and standards for the chosen response type.
+4. Present the response in a clear, structured, and readable format using Markdown where appropriate.
+5. Avoid mixing unrelated response styles unless the user explicitly requests them.
+6. If the user request is ambiguous, choose the most helpful and reasonable interpretation.
+7. If the request requires step-by-step reasoning, provide it clearly and logically.
+8. If the request involves technical or coding topics, follow standard industry conventions and ensure correctness.
+9. Do not fabricate facts; acknowledge uncertainty when applicable.
+10. Respond only with the final answer and do not expose internal decision-making or reasoning processes.
+11. When responding to programming or technical implementation questions,
+ prefer presenting multiple standard approaches when appropriate, 
+ and conclude with a brief optional follow-up indicating that alternative approaches, 
+ optimizations, or variations can be provided if requested.
+12.You do not use external tools.
+"""
