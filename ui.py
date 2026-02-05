@@ -3,6 +3,7 @@ import requests
 from requests.exceptions import ConnectionError
 from fpdf import FPDF
 from io import BytesIO
+from agents import SYSTEM_PROMPT
 FASTAPI_URL = "http://localhost:8000"
 
 
@@ -174,12 +175,13 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("🔍 Generating..."):
             payload = {
-                "query": prompt,
-                #"document_context": st.session_state.attached_doc
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    *[m for m in st.session_state.messages if m["role"] != "system"]
+                ]
             }
 
             reply = ""
-            source = ""
 
             try:
                 response = requests.post(
@@ -191,10 +193,6 @@ if prompt:
                 if response.status_code == 200:
                     data = response.json()
                     reply = data.get("result", "")
-                    source = data.get("source", "")
-
-                    if source:
-                        reply += f"\n\n*Source: {source}*"
 
                     st.markdown(reply)
                     st.session_state.messages.append(
@@ -202,6 +200,7 @@ if prompt:
                     )
                 else:
                     st.error("Backend error")
+
             except ConnectionError:
                 st.error("❌ Cannot connect to backend server. Please ensure the API is running on http://localhost:8000")
             except requests.exceptions.Timeout:

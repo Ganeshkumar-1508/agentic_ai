@@ -10,7 +10,8 @@ app = FastAPI()
 
 
 class QueryRequest(BaseModel):
-    query: str
+    messages: list
+
 
 
 UPLOAD_DIR = "uploads"
@@ -20,13 +21,10 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # ==============================
 # Simple LLM call (NO CREW)
 # ==============================
-def generate_answer(user_query: str):
+def generate_answer(messages: list):
     response = client.chat.completions.create(
         model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_query}
-        ],
+        messages=messages,
         temperature=0.3
     )
 
@@ -39,31 +37,33 @@ def generate_answer(user_query: str):
     }
 
 
+
 # ==============================
 # Document upload (optional)
-# ==============================
-@app.post("/process-document")
-async def process_document(file: UploadFile = File(...)):
-    path = os.path.join(UPLOAD_DIR, file.filename)
-
-    with open(path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    return {"status": "stored", "filename": file.filename}
-
-
-# ==============================
-# Main chat endpoint
 # ==============================
 @app.post("/process-query")
 async def process_query(req: QueryRequest):
     try:
-        return generate_answer(req.query)
+        return generate_answer(req.messages)
     except Exception as e:
         return {
             "result": f"Error: {str(e)}",
             "error": True
         }
+
+
+# ==============================
+# Main chat endpoint
+# ==============================
+# @app.post("/process-query")
+# async def process_query(req: QueryRequest):
+#     try:
+#         return generate_answer(req.query)
+#     except Exception as e:
+#         return {
+#             "result": f"Error: {str(e)}",
+#             "error": True
+#         }
 
 
 # ==============================

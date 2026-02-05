@@ -2,8 +2,8 @@ import time
 from agents import client, SYSTEM_PROMPT, MODEL_NAME
 
 def main():
-    print("=== Single-Agent LLM Application ===")
-    print("Type 'quit' to exit.\n")
+    print("=== Application Started ===")
+    print("Type 'quit'/ 'q' to exit.\n")
 
     # Conversation memory
     messages = [
@@ -11,15 +11,15 @@ def main():
     ]
 
     while True:
-        user_input = input("You: ").strip()
+        user_input = input("You('Enter a topic or 'quit'): ").strip()
         if user_input.lower() in ("quit", "exit", "q"):
             print("Assistant: Goodbye ")
             break
 
         start = time.time()
-
-        messages.append({"role": "user", "content": user_input})
-
+       
+        messages.append({"role": "user", "content": user_input})  
+              
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
@@ -30,7 +30,7 @@ def main():
 
         print("\nAssistant:\n")
         print(answer)
-        print(f"\n⏱ Time: {time.time() - start:.2f}s\n")
+        print(f"\nTime: {time.time() - start:.2f}s\n")
 
         messages.append({"role": "assistant", "content": answer})
 
