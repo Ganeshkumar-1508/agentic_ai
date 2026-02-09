@@ -35,7 +35,7 @@ def generate_image(prompt: str) -> dict | None:
     try:
         image = pipe(
             prompt=prompt,
-            num_inference_steps=10,     # ↓ from 30
+            num_inference_steps=15,     # ↓ from 30
             guidance_scale=6.0,         # ↓ slightly
             height=384,                 # ↓ resolution
             width=384
