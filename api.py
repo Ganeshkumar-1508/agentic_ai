@@ -7,6 +7,8 @@ from planner import plan_steps
 from text_agent import generate_text
 from image_agent import generate_image
 from llm_config import client, MODEL_NAME
+from crew_orchestrator import run_crew
+
 
 
 # ==============================
@@ -71,6 +73,7 @@ app = FastAPI()
 class QueryRequest(BaseModel):
     query: str
     context: str | None = None
+    image_context: dict | None = None
 
 
 # ==============================
@@ -79,69 +82,26 @@ class QueryRequest(BaseModel):
 @app.post("/process-query")
 async def process_query(req: QueryRequest, background_tasks: BackgroundTasks):
     user_query = req.query
-
-    # -------- 1. Planning --------
-    try:
-        plan = plan_steps(user_query)
-    except Exception as e:
-        print("[WARN] Planner failed:", e)
-        plan = {
-            "steps": [
-                {"agent": "TEXT", "input": user_query}
-            ]
-        }
-
-    if not plan.get("steps"):
-        plan = {
-            "steps": [
-                {"agent": "TEXT", "input": user_query}
-            ]
-        }
-
-    # -------- 2. Execution --------
-    text_outputs = []
-    image_outputs = []
     context = req.context
-
-    for step in plan["steps"]:
-        agent_type = step.get("agent")
-        agent_input = step.get("input") or user_query
-
-        # ---- TEXT AGENT ----
-        if agent_type == "TEXT":
-            text_piece = generate_text(agent_input, context)
-            text_outputs.append(text_piece)
-            context = text_piece
+    image_context = req.image_context
 
 
-        # ---- IMAGE AGENT ----
-        elif agent_type == "IMAGE":
+    plan = plan_steps(user_query)
+
+    text_outputs, image_results = run_crew(plan, user_query, context,image_context)
+
+    image_job_ids = []
+    for img in image_results:
+        if img and img.get("image_path"):
             job_id = str(uuid.uuid4())
+            image_jobs[job_id] = img["image_path"]
+            image_job_ids.append(job_id)
 
-            background_tasks.add_task(
-                run_image_job,
-                job_id,
-                agent_input
-            )
-
-            image_outputs.append(job_id)
-
-
-        # ---- UNKNOWN → fallback to TEXT ----
-        else:
-            print(f"[WARN] Unknown agent {agent_type}, falling back to TEXT")
-            text_output = generate_text(agent_input, context)
-            context = text_output
-
-    # -------- 3. Safe JSON Response --------
     return {
-    "text": "\n\n".join(text_outputs) if text_outputs else "⚠️ No text generated.",
-    "images": image_outputs,
-    "plan": plan
-}
-
-
-
+        "text": "\n\n".join(text_outputs) if text_outputs else "⚠️ No text generated.",
+        "images": image_job_ids,
+        "plan": plan
+    }
 
 # ==============================
 # IMAGE STATUS ENDPOINT

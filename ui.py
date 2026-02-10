@@ -141,7 +141,8 @@ if prompt:
                 f"{FASTAPI_URL}/process-query",
                 json={
                     "query": prompt,
-                    "context": context
+                    "context": context,
+                    "image_context": st.session_state.get("last_image_context")
                 },
                 timeout=300
             )
@@ -168,6 +169,11 @@ if prompt:
                     "type": "image_job",
                     "content": job_id
                 })
+            # ✅ STORE IMAGE CONTEXT FOR FUTURE QUESTIONS
+            st.session_state.last_image_context = {
+                "prompt": prompt,     # what user asked to generate
+                "job_ids": images     # optional, for future use
+            }
 
 
 # ================= DOWNLOADS =================

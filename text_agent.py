@@ -11,7 +11,7 @@ Responsible for all text-based generation:
 from llm_config import client, MODEL_NAME, SYSTEM_PROMPT
 
 
-def generate_text(prompt: str, context: str | None = None) -> str:
+def generate_text(prompt: str, context: str | None = None,image_context: dict | None = None) -> str:
     """
     Safe text generation wrapper.
     ALWAYS returns a string.
@@ -28,6 +28,17 @@ def generate_text(prompt: str, context: str | None = None) -> str:
                 "role": "assistant",
                 "content": f"Previous context:\n{context}"
             })
+        
+        if image_context:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "The user previously generated an image with this description:\n"
+                    f"{image_context['prompt']}\n\n"
+                    "Use this image as context when answering the next question."
+                )
+            })
+
 
         messages.append({
             "role": "user",
