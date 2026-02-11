@@ -3,6 +3,7 @@ import requests
 from fpdf import FPDF
 import os
 import time
+import re
 
 FASTAPI_URL = "http://localhost:8000"
 
@@ -50,11 +51,58 @@ def poll_image_jobs_once():
 
 
 # ================= PDF EXPORT =================
+def add_markdown_text(pdf, text):
+    lines = text.split("\n")
+
+    for line in lines:
+
+        clean = line.strip()
+
+        # ===== HEADINGS =====
+        if clean.startswith("### "):
+            pdf.set_font("Helvetica", "B", 18)
+            pdf.multi_cell(0, 10, clean[4:])
+            pdf.ln(3)
+
+        elif clean.startswith("## "):
+            pdf.set_font("Helvetica", "B", 22)
+            pdf.multi_cell(0, 12, clean[3:])
+            pdf.ln(4)
+
+        elif clean.startswith("# "):
+            pdf.set_font("Helvetica", "B", 28)
+            pdf.multi_cell(0, 14, clean[2:])
+            pdf.ln(6)
+
+        # ===== BULLETS =====
+        elif clean.startswith("* ") or clean.startswith("- "):
+            pdf.set_font("Helvetica", "", 11)
+            pdf.multi_cell(0, 6, "• " + clean[2:])
+
+        # ===== BOLD TEXT =====
+        elif "**" in clean:
+            parts = re.split(r"(\*\*.*?\*\*)", clean)
+
+            for part in parts:
+                if part.startswith("**") and part.endswith("**"):
+                    pdf.set_font("Helvetica", "B", 11)
+                    pdf.write(6, part[2:-2])
+                else:
+                    pdf.set_font("Helvetica", "", 11)
+                    pdf.write(6, part)
+            pdf.ln(8)
+
+        # ===== NORMAL =====
+        else:
+            pdf.set_font("Helvetica", "", 11)
+            pdf.multi_cell(0, 6, clean)
+
 def generate_pdf_from_conversation(messages):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "AI Agent Assistant - Conversation", ln=True, align="C")
+
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.cell(0, 12, "AI Agent Assistant - Conversation", ln=True, align="C")
     pdf.ln(6)
 
     for msg in messages:
@@ -62,21 +110,21 @@ def generate_pdf_from_conversation(messages):
         msg_type = msg["type"]
 
         if msg_type == "text":
-            pdf.set_font("Helvetica", "B", 11)
-            pdf.cell(0, 6, f"{role}:", ln=True)
-            pdf.set_font("Helvetica", "", 10)
-            pdf.multi_cell(
-                0, 5,
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.cell(0, 8, f"{role}:", ln=True)
+
+            add_markdown_text(
+                pdf,
                 msg["content"].encode("latin-1", errors="replace").decode("latin-1")
             )
-            pdf.ln(3)
+            pdf.ln(4)
 
         elif msg_type == "image":
             image_path = msg["content"]
             if os.path.exists(image_path):
-                pdf.ln(3)
+                pdf.ln(5)
                 pdf.image(image_path, w=120)
-                pdf.ln(6)
+                pdf.ln(8)
 
     return pdf.output(dest="S").encode("latin-1")
 
