@@ -3,9 +3,9 @@ from text_agent import generate_text
 from image_agent import generate_image
 
 # ==============================
-# CREW ORCHESTRATOR (SAFE MODE)
+# CREW ORCHESTRATOR ( SAFE MODE )
 # ==============================
-
+ 
 def run_crew(plan: dict, user_query: str, context: str | None,image_context: dict | None):
     """
     CrewAI is used ONLY as a task container.
