@@ -1,6 +1,7 @@
 from crewai import Task
-from agents import research_agent, analysis_agent, structuring_agent,writing_agent,code_agent, code_research_agent 
+from llm_config import research_agent, analysis_agent, structuring_agent,writing_agent,code_agent, code_research_agent 
    
+
 
 
     
@@ -45,21 +46,17 @@ code_research_task = Task(
     output_key="code_research_summary" 
 )
 
-#  CODE GENERATION (LLM)
 code_task = Task(
     description=(
         "You are a code generator.\n\n"
-        "STRICT RULES (DO NOT BREAK):\n"
-        "- Output RAW executable source code\n"
-        "- Automatically infer the programming language from the user request\n"
-        "- Do NOT use markdown\n"
-        "- Do NOT explain anything\n"
-        "- Do NOT add extra text\n\n"
-        "Context (may be empty):\n"
-        "{code_research_summary}\n\n"
+        "Your task is to generate correct, executable source code.\n\n"
+        "Rules:\n"
+        "- Output ONLY valid executable source code\n"
+        "- Do NOT include explanations, thoughts, or comments outside the code\n"
+        "- Infer the programming language from the user request\n\n"
         "User request:\n"
         "{user_request}\n\n"
-        "The output must start directly with valid source code."
+        "The output MUST start directly with valid source code."
     ),
     expected_output="Executable source code only",
     agent=code_agent

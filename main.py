@@ -1,5 +1,5 @@
 import time
-from agents import client, SYSTEM_PROMPT, MODEL_NAME
+from llm_config import client, SYSTEM_PROMPT, MODEL_NAME
 
 def main():
     print("=== Application Started ===")
@@ -19,7 +19,7 @@ def main():
         start = time.time()
        
         messages.append({"role": "user", "content": user_input})  
-              
+
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,

@@ -1,108 +1,64 @@
 import json
-from llm_config import client, MODEL_NAME
+from crewai.llm import LLM
+import os
 
-# ==============================
-# PLANNER SYSTEM PROMPT
-# ==============================
+# 🔥 Use SAME NVIDIA LLM as Crew
+planner_llm = LLM(
+    provider="nvidia",
+    model=os.getenv("LITELLM_MODEL"),
+    api_key=os.getenv("NVIDIA_API_KEY"),
+    base_url=os.getenv("LITELLM_BASE_URL"),
+)
+
 PLANNER_PROMPT = """
-You are an execution planner for an agentic AI system.
+You are an execution planner for an AI system.
 
-Your task is to analyze the user request and decide:
-- which agents are required
-- the correct execution order
+Your task is to analyze the user input and create execution steps.
 
 Available agents:
-- TEXT  : explanations, reasoning, code, reports, summaries
-- IMAGE : ONLY if the user EXPLICITLY asks for an image, diagram, or visual
-- GRAPH : ONLY if the user explicitly asks for charts or plots
+- TEXT : explanations, code, reports, reasoning, or conversational replies
 
-STRICT RULES:
-- Do NOT include IMAGE or GRAPH unless the user clearly asks for it
-- Reports, essays, explanations default to TEXT ONLY
-- Do NOT add images implicitly
+IMPORTANT RULES:
 
-Return ONLY valid JSON.
-Do NOT explain anything.
-Do NOT add markdown.
+1. If the user input is a simple greeting or small talk
+   (like hello, hi, good morning, hey, etc.),
+   then create a TEXT step that instructs the agent to
+   respond with a short, friendly greeting message only.
+   Do NOT generate explanations about greetings.
 
-Output format:
+2. If the user input is a real request (report, explanation, code, etc.),
+   then create a TEXT step using the full user request.
+
+Return ONLY valid JSON in this format:
+
 {
   "steps": [
-    { "agent": "<AGENT_NAME>", "input": "<WHAT_THE_AGENT_SHOULD_DO>" }
+    { "agent": "TEXT", "input": "<what the agent should do>" }
   ]
 }
 """
 
-# ==============================
-# PLANNER FUNCTION (SAFE)
-# ==============================
 def plan_steps(user_query: str) -> dict:
-    """
-    Uses the LLM to decide which agents are needed
-    and in what order.
-
-    ALWAYS returns a valid plan.
-    NEVER crashes the pipeline.
-    """
-
     try:
-        messages = [
+        response = planner_llm.call([
             {"role": "system", "content": PLANNER_PROMPT},
             {"role": "user", "content": user_query}
-        ]
+        ])
 
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            temperature=0.0
-        )
+        plan = json.loads(response)
 
-        plan_text = response.choices[0].message.content.strip()
+        if "steps" not in plan:
+            raise ValueError("Invalid planner output")
 
-        # 🔐 HARD JSON PARSE SAFETY
-        plan = json.loads(plan_text)
-
-        # 🔐 STRUCTURE SAFETY
-        if not isinstance(plan, dict):
-            raise ValueError("Planner output is not a dict")
-
-        if "steps" not in plan or not isinstance(plan["steps"], list):
-            raise ValueError("Planner JSON missing steps array")
-
-        # 🔐 STEP VALIDATION
-        valid_agents = {"TEXT", "IMAGE", "GRAPH"}
-        cleaned_steps = []
-
-        for step in plan["steps"]:
-            agent = step.get("agent")
-            input_text = step.get("input")
-
-            if agent not in valid_agents:
-                continue
-
-            cleaned_steps.append({
-                "agent": agent,
-                "input": input_text or user_query
-            })
-
-        # 🔐 FINAL FALLBACK
-        if not cleaned_steps:
-            cleaned_steps = [
-                {"agent": "TEXT", "input": user_query}
-            ]
-
-        return {"steps": cleaned_steps}
+        return plan
 
     except Exception as e:
         print("[PLANNER ERROR]", str(e))
-
-        # 🔁 ULTIMATE SAFE FALLBACK
         return {
             "steps": [
                 {"agent": "TEXT", "input": user_query}
             ]
         }
-
 
 # ==============================
 # LOCAL TEST
