@@ -1,6 +1,6 @@
 from crewai import Agent, Task, Crew
 from text_agent import generate_text
-from image_agent import generate_image
+#from image_agent import generate_image
 
 # ==============================
 # CREW ORCHESTRATOR ( SAFE MODE )
