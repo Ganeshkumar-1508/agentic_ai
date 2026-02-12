@@ -52,32 +52,49 @@ def poll_image_jobs_once():
 
 # ================= PDF EXPORT =================
 def add_markdown_text(pdf, text):
+    usable_width = pdf.w - pdf.l_margin - pdf.r_margin
     lines = text.split("\n")
 
-    for line in lines:
+    in_code_block = False
 
-        clean = line.strip()
+    for line in lines:
+        clean = line.rstrip()
+
+        # Toggle code block
+        if clean.startswith("```"):
+            in_code_block = not in_code_block
+            pdf.ln(4)
+            continue
+
+        pdf.set_x(pdf.l_margin)
+
+        # ===== CODE BLOCK =====
+        if in_code_block:
+            pdf.set_font("DejaVu", "", 10)
+            pdf.set_fill_color(245, 245, 245)
+            pdf.multi_cell(usable_width, 6, clean)
+            continue
 
         # ===== HEADINGS =====
         if clean.startswith("### "):
-            pdf.set_font("Helvetica", "B", 18)
-            pdf.multi_cell(0, 10, clean[4:])
-            pdf.ln(3)
+            pdf.set_font("DejaVu", "B", 16)
+            pdf.multi_cell(usable_width, 8, clean[4:])
+            pdf.ln(2)
 
         elif clean.startswith("## "):
-            pdf.set_font("Helvetica", "B", 22)
-            pdf.multi_cell(0, 12, clean[3:])
-            pdf.ln(4)
+            pdf.set_font("DejaVu", "B", 18)
+            pdf.multi_cell(usable_width, 10, clean[3:])
+            pdf.ln(3)
 
         elif clean.startswith("# "):
-            pdf.set_font("Helvetica", "B", 28)
-            pdf.multi_cell(0, 14, clean[2:])
-            pdf.ln(6)
+            pdf.set_font("DejaVu", "B", 22)
+            pdf.multi_cell(usable_width, 12, clean[2:])
+            pdf.ln(4)
 
         # ===== BULLETS =====
         elif clean.startswith("* ") or clean.startswith("- "):
-            pdf.set_font("Helvetica", "", 11)
-            pdf.multi_cell(0, 6, "• " + clean[2:])
+            pdf.set_font("DejaVu", "", 11)
+            pdf.multi_cell(usable_width, 6, "• " + clean[2:])
 
         # ===== BOLD TEXT =====
         elif "**" in clean:
@@ -85,48 +102,81 @@ def add_markdown_text(pdf, text):
 
             for part in parts:
                 if part.startswith("**") and part.endswith("**"):
-                    pdf.set_font("Helvetica", "B", 11)
+                    pdf.set_font("DejaVu", "B", 11)
                     pdf.write(6, part[2:-2])
                 else:
-                    pdf.set_font("Helvetica", "", 11)
+                    pdf.set_font("DejaVu", "", 11)
                     pdf.write(6, part)
+
             pdf.ln(8)
 
-        # ===== NORMAL =====
+        # ===== NORMAL TEXT =====
         else:
-            pdf.set_font("Helvetica", "", 11)
-            pdf.multi_cell(0, 6, clean)
+            pdf.set_font("DejaVu", "", 11)
+            pdf.multi_cell(usable_width, 6, clean)
 
 def generate_pdf_from_conversation(messages):
     pdf = FPDF()
-    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
 
-    pdf.set_font("Helvetica", "B", 18)
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    font_path_regular = os.path.join(
+        BASE_DIR,
+        "dejavu-fonts-ttf-2.37",
+        "ttf",
+        "DejaVuSans.ttf"
+    )
+
+    font_path_bold = os.path.join(
+        BASE_DIR,
+        "dejavu-fonts-ttf-2.37",
+        "ttf",
+        "DejaVuSans-Bold.ttf"
+    )
+
+    pdf.add_font("DejaVu", "", font_path_regular)
+    pdf.add_font("DejaVu", "B", font_path_bold)
+
+    pdf.add_page()
+    pdf.set_font("DejaVu", "", 11)
+
+    # Title
+    pdf.set_font("DejaVu", "B", 18)
     pdf.cell(0, 12, "AI Agent Assistant - Conversation", ln=True, align="C")
-    pdf.ln(6)
+    pdf.ln(8)
 
     for msg in messages:
         role = msg["role"].upper()
         msg_type = msg["type"]
 
         if msg_type == "text":
-            pdf.set_font("Helvetica", "B", 12)
-            pdf.cell(0, 8, f"{role}:", ln=True)
 
-            add_markdown_text(
-                pdf,
-                msg["content"].encode("latin-1", errors="replace").decode("latin-1")
-            )
-            pdf.ln(4)
+            # Role Header Styling
+            pdf.set_font("DejaVu", "B", 12)
+
+            if role == "USER":
+                pdf.set_text_color(0, 0, 180)  # Blue
+            else:
+                pdf.set_text_color(0, 140, 0)  # Green
+
+            pdf.cell(0, 8, role, ln=True)
+            pdf.set_text_color(0, 0, 0)
+
+            pdf.ln(2)
+
+            add_markdown_text(pdf, msg["content"])
+            pdf.ln(6)
 
         elif msg_type == "image":
             image_path = msg["content"]
             if os.path.exists(image_path):
-                pdf.ln(5)
-                pdf.image(image_path, w=120)
+                usable_width = pdf.w - pdf.l_margin - pdf.r_margin
+                pdf.image(image_path, w=usable_width)
                 pdf.ln(8)
 
-    return pdf.output(dest="S").encode("latin-1")
+    return bytes(pdf.output(dest="S"))
+
 
 
 # ================= UI =================
@@ -242,14 +292,40 @@ if st.session_state.messages:
         st.download_button("📋 Download TXT", txt, "conversation.txt")
 
     with col3:
-        if st.button("📋 Copy to Clipboard"):
-            clipboard_text = ""
-            for m in st.session_state.messages:
-                if m["type"] == "text":
-                    clipboard_text += f"{m['role'].upper()}:\n{m['content']}\n\n"
+        clipboard_text = ""
 
-            st.success("✅ Conversation copied! Press Ctrl+V to paste")
-            st.code(clipboard_text)
+        for m in st.session_state.messages:
+            if m["type"] == "text":
+                clipboard_text += f"{m['role'].upper()}:\n{m['content']}\n\n"
+
+        # Escape properly for JS
+        escaped_text = (
+            clipboard_text
+            .replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+        )
+
+        st.components.v1.html(f"""
+            <div style="text-align:left;">
+                <button onclick="copyText()" 
+                    style="
+                        background:none;
+                        border:none;
+                        cursor:pointer;
+                        font-size:18px;
+                    ">
+                    ⧉
+                </button>
+            </div>
+
+            <script>
+            function copyText() {{
+                navigator.clipboard.writeText(`{escaped_text}`);
+            }}
+            </script>
+        """, height=40)
+
 
     with col4:
         if st.button("🔄 Clear Chat"):
