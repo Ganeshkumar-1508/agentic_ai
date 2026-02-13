@@ -15,39 +15,39 @@ def get_last_text_context():
 
 
 # ================= IMAGE JOB POLLING (SINGLE SOURCE OF TRUTH) =================
-def poll_image_jobs_once():
-    updated = False
+# def poll_image_jobs_once():
+#     updated = False
 
-    for i, msg in enumerate(st.session_state.messages):
-        if msg["type"] == "image_job":
-            job_id = msg["content"]
+#     for i, msg in enumerate(st.session_state.messages):
+#         if msg["type"] == "image_job":
+#             job_id = msg["content"]
 
-            try:
-                status = requests.get(
-                    f"{FASTAPI_URL}/image-status/{job_id}",
-                    timeout=3
-                ).json()
+#             try:
+#                 status = requests.get(
+#                     f"{FASTAPI_URL}/image-status/{job_id}",
+#                     timeout=3
+#                 ).json()
 
-                if status["status"] == "done":
-                    st.session_state.messages[i] = {
-                        "role": "assistant",
-                        "type": "image",
-                        "content": status["image_path"]
-                    }
-                    updated = True
+#                 if status["status"] == "done":
+#                     st.session_state.messages[i] = {
+#                         "role": "assistant",
+#                         "type": "image",
+#                         "content": status["image_path"]
+#                     }
+#                     updated = True
 
-                elif status["status"] == "failed":
-                    st.session_state.messages[i] = {
-                        "role": "assistant",
-                        "type": "text",
-                        "content": "❌ Image generation failed"
-                    }
-                    updated = True
+#                 elif status["status"] == "failed":
+#                     st.session_state.messages[i] = {
+#                         "role": "assistant",
+#                         "type": "text",
+#                         "content": "❌ Image generation failed"
+#                     }
+#                     updated = True
 
-            except Exception:
-                pass
+#             except Exception:
+#                 pass
 
-    return updated
+#     return updated
 
 
 # ================= PDF EXPORT =================
@@ -198,8 +198,8 @@ if "messages" not in st.session_state:
 
 
 # ✅ SINGLE POLL LOCATION
-if poll_image_jobs_once():
-    st.rerun()
+#if poll_image_jobs_once():
+#    st.rerun()
 
 
 # ================= CHAT HISTORY =================
@@ -214,8 +214,8 @@ for msg in st.session_state.messages:
         elif msg["type"] == "image":
             st.image(msg["content"], width=350)
 
-        elif msg["type"] == "image_job":
-            st.info("🖼️ Generating image… please wait")
+#        elif msg["type"] == "image_job":
+#            st.info("🖼️ Generating image… please wait")
 
 
 # ================= INPUT =================
@@ -261,12 +261,21 @@ if prompt:
             if images and (not text or text.startswith("⚠️")):
                 st.markdown("🖼️ **Here is the image you requested:**")
 
-            for job_id in images:
+            # for job_id in images:
+            #     st.session_state.messages.append({
+            #         "role": "assistant",
+            #         "type": "image_job",
+            #         "content": job_id
+            #     })
+
+            for image_path in images:
+                st.image(image_path, width=500)
                 st.session_state.messages.append({
                     "role": "assistant",
-                    "type": "image_job",
-                    "content": job_id
+                    "type": "image",
+                    "content": image_path
                 })
+
             # ✅ STORE IMAGE CONTEXT FOR FUTURE QUESTIONS
             st.session_state.last_image_context = {
                 "prompt": prompt,     # what user asked to generate
@@ -332,6 +341,6 @@ if st.session_state.messages:
             st.session_state.messages = []
             st.rerun()
 # ================= FORCE UI REFRESH WHILE IMAGE IS PENDING =================
-if any(msg["type"] == "image_job" for msg in st.session_state.messages):
-    time.sleep(2)
-    st.rerun()
+#if any(msg["type"] == "image_job" for msg in st.session_state.messages):
+#    time.sleep(2)
+#    st.rerun()

@@ -17,3 +17,15 @@ text_agent = Agent(
     allow_delegation=False,
     llm=nim_llm
 )
+
+data_agent = Agent(
+    role="Data Extraction Agent",
+    goal="Extract structured numeric data from user prompts and return strict CSV only.",
+    backstory=(
+        "You analyze user input and extract structured numeric data. "
+        "You must return ONLY raw CSV. No markdown. No explanations."
+    ),
+    allow_delegation=False,
+    llm=nim_llm
+)
+

@@ -88,6 +88,7 @@ async def process_query(req: QueryRequest, background_tasks: BackgroundTasks):
 
 
     plan = plan_steps(user_query)
+    print("PLAN:", plan)
 
 
     # image_job_ids = []
@@ -105,8 +106,8 @@ async def process_query(req: QueryRequest, background_tasks: BackgroundTasks):
     crew_result = run_crew(plan)
 
     return {
-        "text": str(crew_result),
-        "images": [],
+        "text": crew_result.get("text", ""),
+        "images": crew_result.get("images", []),
         "plan": plan
     }
 

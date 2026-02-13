@@ -11,54 +11,50 @@ planner_llm = LLM(
 )
 
 PLANNER_PROMPT = """
-You are an execution planner for an AI system.
-
-Your task is to analyze the user input and create execution steps.
+You are an execution planner.
 
 Available agents:
-- TEXT : explanations, code, reports, reasoning, or conversational replies
+- TEXT
+- DATA
 
-IMPORTANT RULES:
+RULES:
 
-1. If the user input is a simple greeting or small talk
-   (like hello, hi, good morning, hey, etc.),
-   then create a TEXT step that instructs the agent to
-   respond with a short, friendly greeting message only.
-   Do NOT generate explanations about greetings.
+1. If user asks for dashboard → DATA
+2. If user asks for chart/graph/visualize → DATA
+3. If input contains multiple numbers → DATA
+4. Otherwise → TEXT
 
-2. If the user input is a real request (report, explanation, code, etc.),
-   then create a TEXT step using the full user request.
-
-Return ONLY valid JSON in this format:
+Return JSON:
 
 {
   "steps": [
-    { "agent": "TEXT", "input": "<what the agent should do>" }
+    { "agent": "TEXT or DATA", "input": "<user request>" }
   ]
 }
 """
 
 def plan_steps(user_query: str) -> dict:
-    try:
-        response = planner_llm.call([
-            {"role": "system", "content": PLANNER_PROMPT},
-            {"role": "user", "content": user_query}
-        ])
 
-        plan = json.loads(response)
+    lower_query = user_query.lower()
 
-        if "steps" not in plan:
-            raise ValueError("Invalid planner output")
-
-        return plan
-
-    except Exception as e:
-        print("[PLANNER ERROR]", str(e))
+    # Force DATA routing for dashboards, charts, or numeric input
+    if (
+        "dashboard" in lower_query
+        or "chart" in lower_query
+        or any(char.isdigit() for char in lower_query)
+    ):
         return {
             "steps": [
-                {"agent": "TEXT", "input": user_query}
+                {"agent": "DATA", "input": user_query}
             ]
         }
+
+    # Default fallback
+    return {
+        "steps": [
+            {"agent": "TEXT", "input": user_query}
+        ]
+    }
 
 # ==============================
 # LOCAL TEST
