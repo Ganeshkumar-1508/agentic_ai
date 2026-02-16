@@ -45,7 +45,8 @@ def plan_steps(user_query: str) -> dict:
     ):
         return {
             "steps": [
-                {"agent": "DATA", "input": user_query}
+                {"agent": "DATA", "input": user_query},
+                {"agent": "TEXT", "input": f"Explain the insights from the chart generated for: {user_query}"}
             ]
         }
 
