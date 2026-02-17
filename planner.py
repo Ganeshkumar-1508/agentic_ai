@@ -16,6 +16,7 @@ You are an execution planner.
 Available agents:
 - TEXT
 - DATA
+- IMAGE
 
 RULES:
 
@@ -23,44 +24,112 @@ RULES:
 2. If user asks for chart/graph/visualize → DATA
 3. If input contains multiple numbers → DATA
 4. Otherwise → TEXT
+5. If the user explicitly requests to generate, draw, create, or produce an image,
+   you MUST include one IMAGE step.
+6. If the user requests explanation, report, code, story, analysis,
+   you MUST include one TEXT step.
+7. If the user requests BOTH image AND explanation/story/report,
+   you MUST create EXACTLY TWO steps:
+   Step 1: IMAGE
+   Step 2: TEXT
+8. If the user asks a follow-up question about a previously generated image
+   (e.g., "explain it", "describe the image", "what is happening here"),
+   DO NOT create an IMAGE step.
+   Create ONLY a TEXT step.
+9. NEVER create duplicate IMAGE steps.
+10. NEVER generate IMAGE if not explicitly requested.
 
 Return JSON:
 
 {
   "steps": [
-    { "agent": "TEXT or DATA", "input": "<user request>" }
-  ]
+    { "agent": "TEXT or DATA or IMAGE", "input": "<user request>" }
+   ]
 }
+
 """
 
+
+
+# def plan_steps(user_query: str) -> dict:
+
+#     lower_query = user_query.lower()
+
+#     # Force DATA routing for dashboards, charts, or numeric input
+#     if (
+#         "dashboard" in lower_query
+#         or "chart" in lower_query
+#         or any(char.isdigit() for char in lower_query)
+#     ):
+#         return {
+#             "steps": [
+#                 {"agent": "DATA", "input": user_query},
+#                 {"agent": "TEXT", "input": f"Explain the insights from the chart generated for: {user_query}"}
+#             ]
+#         }
+
+#     # Default fallback
+#     return {
+#         "steps": [
+#             {"agent": "TEXT", "input": user_query}
+#         ]
+#     }
+
+# # ==============================
+# # LOCAL TEST
+# # ==============================
+# if __name__ == "__main__":
+#     test_query = "Explain butterfly life cycle with images"
+#     plan = plan_steps(test_query)
+#     print(json.dumps(plan, indent=2))
 def plan_steps(user_query: str) -> dict:
 
-    lower_query = user_query.lower()
+    prompt = f"""
+{PLANNER_PROMPT}
 
-    # Force DATA routing for dashboards, charts, or numeric input
-    if (
-        "dashboard" in lower_query
-        or "chart" in lower_query
-        or any(char.isdigit() for char in lower_query)
-    ):
-        return {
-            "steps": [
-                {"agent": "DATA", "input": user_query},
-                {"agent": "TEXT", "input": f"Explain the insights from the chart generated for: {user_query}"}
-            ]
-        }
+User request:
+{user_query}
 
-    # Default fallback
-    return {
-        "steps": [
-            {"agent": "TEXT", "input": user_query}
-        ]
-    }
+Return ONLY valid JSON.
+"""
 
-# ==============================
-# LOCAL TEST
-# ==============================
-if __name__ == "__main__":
-    test_query = "Explain butterfly life cycle with images"
-    plan = plan_steps(test_query)
-    print(json.dumps(plan, indent=2))
+    response = planner_llm.call(prompt)
+
+    try:
+        plan = json.loads(response)
+
+        # safety validation
+        if "steps" not in plan:
+            raise ValueError("Invalid planner output")
+
+        return plan
+
+    except Exception as e:
+
+        # fallback safety
+        lower_query = user_query.lower()
+
+        if any(k in lower_query for k in ["image", "draw", "generate", "create", "illustrate"]):
+            return {
+                "steps": [
+                    {"agent": "IMAGE", "input": user_query}
+                ]
+            }
+
+        elif any(k in lower_query for k in ["chart", "graph", "dashboard"]) or any(char.isdigit() for char in lower_query):
+            return {
+                "steps": [
+                    {"agent": "DATA", "input": user_query},
+                    {
+                        "agent": "TEXT",
+                        "input": f"Explain the insights from the chart generated for: {user_query}"
+                    }
+                ]
+            }
+
+        else:
+            return {
+                "steps": [
+                    {"agent": "TEXT", "input": user_query}
+                ]
+            }

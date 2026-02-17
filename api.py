@@ -1,72 +1,15 @@
 import crew_config
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI
 from pydantic import BaseModel
 import uvicorn
-import uuid
 
-from planner import plan_steps
-# from text_agent import generate_text
-# from image_agent import generate_image
-# from llm_config import client, MODEL_NAME
+from planner import plan_steps, planner_llm
 from crew_orchestrator import run_crew
-
-
-
-# ==============================
-# IMAGE JOB STORE
-# ==============================
-image_jobs = {}  # job_id -> image_path | None
-
-
-# ==============================
-# IMAGE INTENT CHECK (DYNAMIC, LLM-BASED)
-# ==============================
-# def user_explicitly_requested_image(query: str) -> bool:
-#     """
-#     Returns True ONLY if the user explicitly asks for an image / diagram / visual.
-#     Fully dynamic, no keywords, no hardcoding.
-#     """
-#     messages = [
-#         {
-#             "role": "system",
-#             "content": (
-#                 "Answer with ONLY true or false.\n\n"
-#                 "true  → user explicitly asks for an image, diagram, drawing, or visual\n"
-#                 "false → report, explanation, essay, code, summary without images"
-#             )
-#         },
-#         {
-#             "role": "user",
-#             "content": query
-#         }
-#     ]
-
-#     response = client.chat.completions.create(
-#         model=MODEL_NAME,
-#         messages=messages,
-#         temperature=0.0
-#     )
-
-#     return response.choices[0].message.content.strip().lower() == "true"
-
-
-# # ==============================
-# # BACKGROUND IMAGE JOB
-# # ==============================
-# def run_image_job(job_id: str, prompt: str):
-#     result = generate_image(prompt)
-
-#     if result and result.get("image_path"):
-#         image_jobs[job_id] = result["image_path"]
-#     else:
-#         image_jobs[job_id] = None
-
 
 # ==============================
 # FASTAPI APP
 # ==============================
 app = FastAPI()
-
 
 # ==============================
 # REQUEST MODEL
@@ -75,59 +18,258 @@ class QueryRequest(BaseModel):
     query: str
     context: str | None = None
     image_context: dict | None = None
+    is_followup: bool = False
 
+# ==============================
+# INTENT HELPERS
+# ==============================
+def user_wants_new_image(text: str) -> bool:
+    t = text.lower()
+    return any(k in t for k in [
+        "generate image",
+        "create image",
+        "draw",
+        "show image",
+        "image of",
+        "picture of"
+    ])
+
+# 🔥 FINAL FIX (DEICTIC IMAGE REFERENCES)
+def refers_to_existing_image(text: str) -> bool:
+    t = text.lower()
+    return any(k in t for k in [
+        "this image",
+        "above image",
+        "that image",
+        "the image",
+        "given image",
+        "this picture",
+        "above picture"
+    ])
+
+# ==============================
+# SEMANTIC HELPERS
+# ==============================
+def is_same_text_topic(previous_text: str | None, new_query: str) -> bool:
+    if not previous_text:
+        return False
+
+    prompt = f"""
+Answer ONLY YES or NO.
+
+Previous explanation:
+{previous_text}
+
+New user question:
+{new_query}
+
+Question:
+Does the new question DEPEND on the previous explanation to make sense?
+"""
+    try:
+        resp = planner_llm.call([
+            {"role": "system", "content": "You are a strict semantic classifier."},
+            {"role": "user", "content": prompt}
+        ])
+        return resp.strip().upper().startswith("YES")
+    except Exception:
+        return False
+
+
+def is_same_image_topic(image_context: dict | None, new_query: str) -> bool:
+    if not image_context:
+        return False
+
+    prompt = f"""
+Answer ONLY YES or NO.
+
+Previously generated image description:
+{image_context.get("semantic_hint", image_context.get("prompt", ""))}
+
+New user request:
+{new_query}
+
+Question:
+Is the new request referring to or dependent on the SAME image?
+"""
+    try:
+        resp = planner_llm.call([
+            {"role": "system", "content": "You are a strict semantic classifier."},
+            {"role": "user", "content": prompt}
+        ])
+        return resp.strip().upper().startswith("YES")
+    except Exception:
+        return False
 
 # ==============================
 # MAIN ORCHESTRATOR
 # ==============================
 @app.post("/process-query")
-async def process_query(req: QueryRequest, background_tasks: BackgroundTasks):
-    user_query = req.query
-    context = req.context
-    image_context = req.image_context
+async def process_query(req: QueryRequest):
+
+    clean_query = req.query.strip()
+    wants_image = user_wants_new_image(clean_query)
+
+    # -------------------------------------------------
+    # 🔍 SEMANTIC CHECK (FIRST)
+    # -------------------------------------------------
+    same_text = is_same_text_topic(req.context, clean_query) if req.context else False
+    same_image = is_same_image_topic(req.image_context, clean_query) if req.image_context else False
+    refers_image = refers_to_existing_image(clean_query)
+
+    print("\n========== DEBUG SEMANTIC ==========")
+    print("Text context exists:", req.context is not None)
+    print("Image context exists:", req.image_context is not None)
+    print("User wants image:", wants_image)
+    print("Same text topic:", same_text)
+    print("Same image topic:", same_image)
+    print("Refers to existing image:", refers_image)
+    print("===================================\n")
+
+    # -------------------------------------------------
+    # 🎯 FINAL INTENT DECISION (FIXED & FINAL)
+    # -------------------------------------------------
+    if wants_image:
+        intent = "IMAGE_REQUEST"
+        req.context = None
+        req.image_context = None
+
+    elif req.image_context and refers_image:
+        intent = "IMAGE_FOLLOWUP"
+
+    elif same_image:
+        intent = "IMAGE_FOLLOWUP"
+
+    elif same_text:
+        intent = "TEXT_FOLLOWUP"
+
+    else:
+        intent = "NEW_TOPIC"
+        req.context = None
+        req.image_context = None
+
+    req.is_followup = intent in ("TEXT_FOLLOWUP", "IMAGE_FOLLOWUP")
+
+    print("\n========== DEBUG INTENT ==========")
+    print("Detected intent:", intent)
+    print("=================================\n")
+
+    # -------------------------------------------------
+    # 🧠 PLANNER INPUT
+    # -------------------------------------------------
+    planner_input = clean_query
+
+    # -------------------------------------------------
+    # 🛑 PLANNER GUARDRAIL (TEXT-ONLY NEW TOPIC)
+    # -------------------------------------------------
+    if intent == "NEW_TOPIC" and not wants_image and not req.image_context:
+        planner_input = f"""
+    This is a TEXT-ONLY request.
+    DO NOT generate images, diagrams, or visual content.
+
+    User request:
+    {clean_query}
+    """
 
 
-    plan = plan_steps(user_query)
-    print("PLAN:", plan)
+    if intent == "TEXT_FOLLOWUP":
+        planner_input = f"""
+Previous explanation:
+{req.context}
 
+The user is asking a FOLLOW-UP question.
+DO NOT change topic.
 
-    # image_job_ids = []
-    # for img in image_results:
-    #     if img and img.get("image_path"):
-    #         job_id = str(uuid.uuid4())
-    #         image_jobs[job_id] = img["image_path"]
-    #         image_job_ids.append(job_id)
+User request:
+{clean_query}
+"""
 
-    # return {
-    #     "text": "\n\n".join(text_outputs) if text_outputs else "⚠️ No text generated.",
-    #     "images": image_job_ids,
-    #     "plan": plan
-    # }
-    crew_result = run_crew(plan)
+    elif intent == "IMAGE_FOLLOWUP":
+        planner_input = f"""
+An image has already been generated.
+
+Image description:
+{req.image_context.get("semantic_hint", req.image_context.get("prompt", ""))}
+
+The user is asking a FOLLOW-UP question about this image.
+DO NOT generate a new image.
+
+User request:
+{clean_query}
+"""
+
+    print("\n========== DEBUG PLANNER INPUT ==========")
+    print(planner_input)
+    print("========================================\n")
+
+    plan = plan_steps(planner_input)
+
+    print("\n========== DEBUG PLANNER OUTPUT ==========")
+    print(plan)
+    print("=========================================\n")
+
+    # -------------------------------------------------
+    # 🔒 HARD LOCK IMAGE ON IMAGE FOLLOW-UP
+    # -------------------------------------------------
+    if intent == "IMAGE_FOLLOWUP":
+        plan["steps"] = [
+            step for step in plan.get("steps", [])
+            if step.get("agent") != "IMAGE"
+        ]
+
+    if not plan.get("steps"):
+        plan["steps"] = [{"agent": "TEXT", "input": clean_query}]
+
+    print("\n========== DEBUG PLAN AFTER LOCK ==========")
+    print(plan)
+    print("==========================================\n")
+
+    # -------------------------------------------------
+    # 🚀 EXECUTION QUERY
+    # -------------------------------------------------
+    execution_query = clean_query
+
+    if intent == "TEXT_FOLLOWUP":
+        execution_query += f"""
+Previous explanation:
+{req.context}
+
+Answer in continuation.
+"""
+
+    if intent == "IMAGE_FOLLOWUP":
+        execution_query += f"""
+CRITICAL IMAGE CONTEXT:
+An image HAS ALREADY BEEN GENERATED.
+
+Image description:
+{req.image_context.get("semantic_hint", req.image_context.get("prompt", ""))}
+
+RULES:
+- DO NOT generate a new image
+- DO NOT describe a new image
+- ONLY answer using the existing image
+"""
+
+    print("\n========== DEBUG EXECUTION QUERY ==========")
+    print(execution_query)
+    print("==========================================\n")
+
+    # -------------------------------------------------
+    # 🤖 RUN CREW
+    # -------------------------------------------------
+    crew_result = run_crew(plan, execution_query)
+
+    print("\n========== DEBUG CREW RESULT ==========")
+    print(crew_result)
+    print("======================================\n")
 
     return {
         "text": crew_result.get("text", ""),
         "images": crew_result.get("images", []),
-        "plan": plan
+        "context": crew_result.get("text", None),
+        "image_context": req.image_context
     }
-
-
-# ==============================
-# IMAGE STATUS ENDPOINT
-# ==============================
-# @app.get("/image-status/{job_id}")
-# def image_status(job_id: str):
-#     if job_id not in image_jobs:
-#         return {"status": "processing"}
-
-#     if image_jobs[job_id] is None:
-#         return {"status": "failed"}
-
-#     return {
-#         "status": "done",
-#         "image_path": image_jobs[job_id]
-#     }
-
 
 # ==============================
 # RUN SERVER
