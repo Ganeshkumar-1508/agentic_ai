@@ -1,7 +1,7 @@
 from crewai import Agent
 from crewai.llm import LLM
 import os
-
+from tools.image_generation_tool import ImageGenerationTool
 # 🔥 Explicit NVIDIA LLM
 nim_llm = LLM(
     provider="nvidia",
@@ -17,3 +17,14 @@ text_agent = Agent(
     allow_delegation=False,
     llm=nim_llm
 )
+
+image_agent = Agent(
+    role="Image Generation Agent",
+    goal="Generate high quality images based on user request",
+    backstory="Expert visual AI generator using AI Horde API",
+    tools=[ImageGenerationTool()],
+    allow_delegation=False,
+    llm=nim_llm,
+    verbose=False
+)
+

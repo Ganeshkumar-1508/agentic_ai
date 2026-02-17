@@ -11,32 +11,51 @@ planner_llm = LLM(
 )
 
 PLANNER_PROMPT = """
-You are an execution planner for an AI system.
+You are a strict execution planner for an AI system.
 
-Your task is to analyze the user input and create execution steps.
+Your job is to decide what agents must run.
 
 Available agents:
-- TEXT : explanations, code, reports, reasoning, or conversational replies
+- TEXT
+- IMAGE
 
-IMPORTANT RULES:
+CRITICAL RULES:
 
-1. If the user input is a simple greeting or small talk
-   (like hello, hi, good morning, hey, etc.),
-   then create a TEXT step that instructs the agent to
-   respond with a short, friendly greeting message only.
-   Do NOT generate explanations about greetings.
+1. If the user explicitly requests to generate, draw, create, or produce an image,
+   you MUST include one IMAGE step.
 
-2. If the user input is a real request (report, explanation, code, etc.),
-   then create a TEXT step using the full user request.
+2. If the user requests explanation, report, code, story, analysis,
+   you MUST include one TEXT step.
 
-Return ONLY valid JSON in this format:
+3. If the user requests BOTH image AND explanation/story/report,
+   you MUST create EXACTLY TWO steps:
+   Step 1: IMAGE
+   Step 2: TEXT
+
+4. If the user asks a follow-up question about a previously generated image
+   (e.g., "explain it", "describe the image", "what is happening here"),
+   DO NOT create an IMAGE step.
+   Create ONLY a TEXT step.
+
+5. NEVER create duplicate IMAGE steps.
+6. NEVER generate IMAGE if not explicitly requested.
+
+Return ONLY valid JSON:
 
 {
   "steps": [
-    { "agent": "TEXT", "input": "<what the agent should do>" }
+    {"agent": "TEXT or IMAGE", "input": "<clean instruction>"}
   ]
 }
+
+No markdown.
+No explanation.
+No extra text.
+Only JSON.
+
 """
+
+
 
 def plan_steps(user_query: str) -> dict:
     try:
