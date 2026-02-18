@@ -34,7 +34,6 @@ def user_wants_new_image(text: str) -> bool:
         "picture of"
     ])
 
-# 🔥 FINAL FIX (DEICTIC IMAGE REFERENCES)
 def refers_to_existing_image(text: str) -> bool:
     t = text.lower()
     return any(k in t for k in [
@@ -48,7 +47,7 @@ def refers_to_existing_image(text: str) -> bool:
     ])
 
 # ==============================
-# SEMANTIC HELPERS
+# SEMANTIC HELPERS (LLM BASED)
 # ==============================
 def is_same_text_topic(previous_text: str | None, new_query: str) -> bool:
     if not previous_text:
@@ -110,9 +109,9 @@ async def process_query(req: QueryRequest):
     clean_query = req.query.strip()
     wants_image = user_wants_new_image(clean_query)
 
-    # -------------------------------------------------
-    # 🔍 SEMANTIC CHECK (FIRST)
-    # -------------------------------------------------
+    # ---------------------------------
+    # SEMANTIC CHECKS
+    # ---------------------------------
     same_text = is_same_text_topic(req.context, clean_query) if req.context else False
     same_image = is_same_image_topic(req.image_context, clean_query) if req.image_context else False
     refers_image = refers_to_existing_image(clean_query)
@@ -126,9 +125,9 @@ async def process_query(req: QueryRequest):
     print("Refers to existing image:", refers_image)
     print("===================================\n")
 
-    # -------------------------------------------------
-    # 🎯 FINAL INTENT DECISION (FIXED & FINAL)
-    # -------------------------------------------------
+    # ---------------------------------
+    # FINAL INTENT DECISION
+    # ---------------------------------
     if wants_image:
         intent = "IMAGE_REQUEST"
         req.context = None
@@ -154,23 +153,19 @@ async def process_query(req: QueryRequest):
     print("Detected intent:", intent)
     print("=================================\n")
 
-    # -------------------------------------------------
-    # 🧠 PLANNER INPUT
-    # -------------------------------------------------
+    # ---------------------------------
+    # PLANNER INPUT
+    # ---------------------------------
     planner_input = clean_query
 
-    # -------------------------------------------------
-    # 🛑 PLANNER GUARDRAIL (TEXT-ONLY NEW TOPIC)
-    # -------------------------------------------------
-    if intent == "NEW_TOPIC" and not wants_image and not req.image_context:
+    if intent == "NEW_TOPIC" and not wants_image:
         planner_input = f"""
-    This is a TEXT-ONLY request.
-    DO NOT generate images, diagrams, or visual content.
+This is a TEXT-ONLY request.
+DO NOT generate images.
 
-    User request:
-    {clean_query}
-    """
-
+User request:
+{clean_query}
+"""
 
     if intent == "TEXT_FOLLOWUP":
         planner_input = f"""
@@ -191,7 +186,7 @@ An image has already been generated.
 Image description:
 {req.image_context.get("semantic_hint", req.image_context.get("prompt", ""))}
 
-The user is asking a FOLLOW-UP question about this image.
+The user is asking a FOLLOW-UP question.
 DO NOT generate a new image.
 
 User request:
@@ -208,9 +203,9 @@ User request:
     print(plan)
     print("=========================================\n")
 
-    # -------------------------------------------------
-    # 🔒 HARD LOCK IMAGE ON IMAGE FOLLOW-UP
-    # -------------------------------------------------
+    # ---------------------------------
+    # HARD LOCK IMAGE ON IMAGE FOLLOW-UP
+    # ---------------------------------
     if intent == "IMAGE_FOLLOWUP":
         plan["steps"] = [
             step for step in plan.get("steps", [])
@@ -224,9 +219,9 @@ User request:
     print(plan)
     print("==========================================\n")
 
-    # -------------------------------------------------
-    # 🚀 EXECUTION QUERY
-    # -------------------------------------------------
+    # ---------------------------------
+    # EXECUTION QUERY
+    # ---------------------------------
     execution_query = clean_query
 
     if intent == "TEXT_FOLLOWUP":
@@ -242,22 +237,18 @@ Answer in continuation.
 CRITICAL IMAGE CONTEXT:
 An image HAS ALREADY BEEN GENERATED.
 
-Image description:
-{req.image_context.get("semantic_hint", req.image_context.get("prompt", ""))}
-
 RULES:
 - DO NOT generate a new image
-- DO NOT describe a new image
-- ONLY answer using the existing image
+- ONLY explain the existing image
 """
 
     print("\n========== DEBUG EXECUTION QUERY ==========")
     print(execution_query)
     print("==========================================\n")
 
-    # -------------------------------------------------
-    # 🤖 RUN CREW
-    # -------------------------------------------------
+    # ---------------------------------
+    # RUN CREW
+    # ---------------------------------
     crew_result = run_crew(plan, execution_query)
 
     print("\n========== DEBUG CREW RESULT ==========")
