@@ -13,43 +13,8 @@ def get_last_text_context():
     return None
 
 
-# ================= IMAGE JOB POLLING (SINGLE SOURCE OF TRUTH) =================
-# def poll_image_jobs_once():
-#     updated = False
+#  PDF EXPORT 
 
-#     for i, msg in enumerate(st.session_state.messages):
-#         if msg["type"] == "image_job":
-#             job_id = msg["content"]
-
-#             try:
-#                 status = requests.get(
-#                     f"{FASTAPI_URL}/image-status/{job_id}",
-#                     timeout=3
-#                 ).json()
-
-#                 if status["status"] == "done":
-#                     st.session_state.messages[i] = {
-#                         "role": "assistant",
-#                         "type": "image",
-#                         "content": status["image_path"]
-#                     }
-#                     updated = True
-
-#                 elif status["status"] == "failed":
-#                     st.session_state.messages[i] = {
-#                         "role": "assistant",
-#                         "type": "text",
-#                         "content": "❌ Image generation failed"
-#                     }
-#                     updated = True
-
-#             except Exception:
-#                 pass
-
-#     return updated
-
-
-# ================= PDF EXPORT =================
 def add_markdown_text(pdf, text):
     usable_width = pdf.w - pdf.l_margin - pdf.r_margin
     lines = text.split("\n")
@@ -138,7 +103,8 @@ def generate_pdf_from_conversation(messages):
     return bytes(pdf.output(dest="S"))
 
 
-# ================= UI =================
+# UI 
+
 st.set_page_config(page_title="AI Agent Assistant", page_icon="🤖", layout="wide")
 st.title("🤖 Chat with AI Assistant")
 st.caption("Chat with AI by giving a query")
@@ -150,7 +116,8 @@ except Exception:
     st.error("❌ Backend not running. Start with: python api.py")
     st.stop()
 
-# ================= SESSION STATE =================
+#SESSION STATE
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -160,7 +127,8 @@ if "last_text_context" not in st.session_state:
 if "last_image_context" not in st.session_state:
     st.session_state.last_image_context = None
 
-# ================= CHAT HISTORY =================
+#CHAT HISTORY 
+
 st.divider()
 
 for msg in st.session_state.messages:
@@ -170,7 +138,8 @@ for msg in st.session_state.messages:
         elif msg["type"] == "image":
             st.image(msg["content"], width=350)
 
-# ================= INPUT =================
+#INPUT
+
 prompt = st.chat_input("Ask anything")
 
 if prompt:
@@ -241,12 +210,13 @@ if prompt:
                 st.session_state.last_image_context = None
 
 
-# ================= DOWNLOADS =================
+# DOWNLOADS
+
 if st.session_state.messages:
     st.divider()
     col1, col2, col3, col4 = st.columns(4)
 
-    # 📄 PDF
+    # PDF
     with col1:
         st.download_button(
             "📄 Download PDF",
@@ -254,7 +224,7 @@ if st.session_state.messages:
             "conversation.pdf"
         )
 
-    # 📋 TXT
+    # TXT
     with col2:
         txt = ""
         for m in st.session_state.messages:
@@ -292,7 +262,7 @@ if st.session_state.messages:
             height=40
         )
 
-    # 🔄 CLEAR
+    # CLEAR
     with col4:
         if st.button("🔄 Clear Chat"):
             st.session_state.messages = []

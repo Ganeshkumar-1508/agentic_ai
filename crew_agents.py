@@ -2,7 +2,9 @@ from crewai import Agent
 from crewai.llm import LLM
 import os
 from tools.image_generation_tool import ImageGenerationTool
-# 🔥 Explicit NVIDIA LLM
+
+# Explicit NVIDIA LLM
+
 nim_llm = LLM(
     provider="nvidia",
     model=os.getenv("LITELLM_MODEL"),
