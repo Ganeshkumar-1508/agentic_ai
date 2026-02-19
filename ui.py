@@ -1,275 +1,256 @@
 import streamlit as st
 import requests
-from requests.exceptions import ConnectionError
 from fpdf import FPDF
-from io import BytesIO
+import os
+import re
 
 FASTAPI_URL = "http://localhost:8000"
 
+# ================= PDF EXPORT =================
+def add_markdown_text(pdf, text):
+    usable_width = pdf.w - pdf.l_margin - pdf.r_margin
+    lines = text.split("\n")
+    in_code_block = False
+
+    for line in lines:
+        clean = line.rstrip()
+
+        if clean.startswith("```"):
+            in_code_block = not in_code_block
+            pdf.ln(4)
+            continue
+
+        pdf.set_x(pdf.l_margin)
+
+        if in_code_block:
+            pdf.set_font("DejaVu", "", 10)
+            pdf.set_fill_color(245, 245, 245)
+            pdf.multi_cell(usable_width, 6, clean)
+            continue
+
+        if clean.startswith("### "):
+            pdf.set_font("DejaVu", "B", 16)
+            pdf.multi_cell(usable_width, 8, clean[4:])
+            pdf.ln(2)
+
+        elif clean.startswith("## "):
+            pdf.set_font("DejaVu", "B", 18)
+            pdf.multi_cell(usable_width, 10, clean[3:])
+            pdf.ln(3)
+
+        elif clean.startswith("# "):
+            pdf.set_font("DejaVu", "B", 22)
+            pdf.multi_cell(usable_width, 12, clean[2:])
+            pdf.ln(4)
+
+        elif clean.startswith("* ") or clean.startswith("- "):
+            pdf.set_font("DejaVu", "", 11)
+            pdf.multi_cell(usable_width, 6, "• " + clean[2:])
+
+        elif "**" in clean:
+            parts = re.split(r"(\*\*.*?\*\*)", clean)
+            for part in parts:
+                if part.startswith("**") and part.endswith("**"):
+                    pdf.set_font("DejaVu", "B", 11)
+                    pdf.write(6, part[2:-2])
+                else:
+                    pdf.set_font("DejaVu", "", 11)
+                    pdf.write(6, part)
+            pdf.ln(8)
+
+        else:
+            pdf.set_font("DejaVu", "", 11)
+            pdf.multi_cell(usable_width, 6, clean)
+
 
 def generate_pdf_from_conversation(messages):
-    """Generate PDF from conversation messages"""
     pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    pdf.add_font("DejaVu", "", os.path.join(BASE_DIR, "dejavu-fonts-ttf-2.37", "ttf", "DejaVuSans.ttf"))
+    pdf.add_font("DejaVu", "B", os.path.join(BASE_DIR, "dejavu-fonts-ttf-2.37", "ttf", "DejaVuSans-Bold.ttf"))
+
     pdf.add_page()
-    
-    
-    pdf.set_font("Helvetica", "B", 16)
-    
-    # Title
-    pdf.cell(0, 10, "AI Agent Assistant - Conversation", ln=True, align="C")
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 5, "Generated Conversation Export", ln=True, align="C")
-    pdf.ln(5)
-    
-    # Add each message
-    pdf.set_font("Helvetica", "", 11)
+    pdf.set_font("DejaVu", "", 11)
+
+    pdf.set_font("DejaVu", "B", 18)
+    pdf.cell(0, 12, "AI Agent Assistant - Conversation", ln=True, align="C")
+    pdf.ln(8)
+
     for msg in messages:
         role = msg["role"].upper()
-        content = msg["content"]
-        
-       
-        content = content.replace("–", "-")  
-        content = content.replace("—", "-")  
-        content = content.replace(""", '"')  
-        content = content.replace(""", '"')  
-        content = content.replace("'", "'")  
-        content = content.replace("'", "'") 
-        
-        # Role header
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.set_text_color(0, 51, 102)  # Dark blue
-        pdf.cell(0, 6, f"{role}:", ln=True)
-        
-        # Message content
-        pdf.set_font("Helvetica", "", 10)
-        pdf.set_text_color(0, 0, 0)  # Black
-        
-        # Multi-line text support with encoding
-        try:
-            pdf.multi_cell(0, 5, content.encode('latin-1', errors='replace').decode('latin-1'))
-        except:
-            # If encoding fails, try with a simplified version
-            pdf.multi_cell(0, 5, str(content)[:500])  # Limit length as fallback
-        
-        pdf.ln(3)
-        
-        # Separator
-        pdf.set_draw_color(200, 200, 200)
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(5)
-    
-    # Return the PDF as bytes - convert bytearray to bytes
-    pdf_bytes = pdf.output(dest='S')
-    if isinstance(pdf_bytes, bytearray):
-        return bytes(pdf_bytes)
-    return pdf_bytes
-# page configuration
-st.set_page_config(
-    page_title="AI Agent Assistant",
-    page_icon="🤖",
-    layout="wide"
-)
-# header
-st.title("🤖 AI Agent Assistant")
-st.caption("Chat with AI agents using documents or Query topics")
 
-# Check if backend is running
-@st.cache_resource
-def check_backend_health():
-    try:
-        response = requests.get(f"{FASTAPI_URL}/docs", timeout=3)
-        return True
-    except (ConnectionError, requests.exceptions.Timeout):
-        return False
+        if msg["type"] == "text":
+            pdf.set_font("DejaVu", "B", 12)
+            pdf.cell(0, 8, role, ln=True)
+            pdf.ln(2)
+            add_markdown_text(pdf, msg["content"])
+            pdf.ln(6)
 
-backend_available = check_backend_health()
+        elif msg["type"] == "image" and os.path.exists(msg["content"]):
+            pdf.image(msg["content"], w=pdf.w - pdf.l_margin - pdf.r_margin)
+            pdf.ln(8)
 
-if not backend_available:
-    st.error("""
-    ⚠️ **Backend Server Not Running**
-    
-    The FastAPI backend is not available at `http://localhost:8000`.
-    
-    **To fix this:**
-    1. Open a new terminal
-    2. Run: `python api.py`
-    3. The server will start on http://localhost:8000
-    4. Then refresh this page
-    """)
+    return bytes(pdf.output(dest="S"))
+
+
+# ================= UI =================
+st.set_page_config(page_title="AI Agent Assistant", page_icon="🤖", layout="wide")
+st.title("🤖 Chat with AI Assistant")
+st.caption("Chat with AI by giving a query")
+
+# Backend check
+try:
+    requests.get(f"{FASTAPI_URL}/docs", timeout=3)
+except Exception:
+    st.error("❌ Backend not running. Start with: python api.py")
     st.stop()
 
+# ================= SESSION STATE =================
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "attached_doc" not in st.session_state:
-    st.session_state.attached_doc = None
+if "last_text_context" not in st.session_state:
+    st.session_state.last_text_context = None
 
-if "doc_processed" not in st.session_state:
-    st.session_state.doc_processed = False
+if "last_image_context" not in st.session_state:
+    st.session_state.last_image_context = None
 
-# ==================== CHAT INPUT AREA ====================
+# ================= CHAT HISTORY =================
 st.divider()
-st.subheader("📝 Chat & Document Area")
-
-col1, col2 = st.columns([1, 14], gap="small")
-# Document uploader
-with col1:
-    with st.popover("➕"):
-        uploaded_file = st.file_uploader(
-            "",
-            type=["pdf", "docx", "txt"],
-            label_visibility="collapsed"
-        )
-
-        if uploaded_file and not st.session_state.doc_processed:
-            with st.spinner("Processing document..."):
-                files = {
-                    "file": (uploaded_file.name, uploaded_file, uploaded_file.type)
-                }
-
-                try:
-                    response = requests.post(
-                        f"{FASTAPI_URL}/process-document",
-                        files=files,
-                        timeout=30
-                    )
-
-                    if response.status_code == 200:
-                        st.session_state.attached_doc = uploaded_file.name
-                        st.session_state.doc_processed = True
-
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "content": f"📎 Document **{uploaded_file.name}** attached successfully."
-                        })
-
-                        st.rerun()
-                    else:
-                        st.error("Failed to process document")
-                except ConnectionError:
-                    st.error("Cannot connect to backend server. Please ensure the API is running.")
-                except requests.exceptions.Timeout:
-                    st.error("Request timed out. The backend server may be processing slowly.")
-
-with col2:
-    prompt = st.chat_input("Ask anything")
-
-if st.session_state.attached_doc:
-    st.info(f"📎 Attached: **{st.session_state.attached_doc}**")
-
-# ==================== MESSAGES AREA ====================
-st.divider()
-st.subheader("💬 Conversation")
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        if msg["type"] == "text":
+            st.markdown(msg["content"])
+        elif msg["type"] == "image":
+            st.image(msg["content"], width=350)
+
+# ================= INPUT =================
+prompt = st.chat_input("Ask anything")
 
 if prompt:
-    st.session_state.messages.append(
-        {"role": "user", "content": prompt}
-    )
+    st.session_state.messages.append({
+        "role": "user",
+        "type": "text",
+        "content": prompt
+    })
 
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
         with st.spinner("🔍 Generating..."):
-            payload = {
-                "query": prompt,
-                "document_context": st.session_state.attached_doc
-            }
 
-            reply = ""
-            source = ""
+            # Follow-up only if image exists
+            is_followup = st.session_state.last_image_context is not None
 
-            try:
-                response = requests.post(
-                    f"{FASTAPI_URL}/process-query",
-                    json=payload,
-                    timeout=120
-                )
+            response = requests.post(
+                f"{FASTAPI_URL}/process-query",
+                json={
+                    "query": prompt,
+                    "context": st.session_state.last_text_context,
+                    "image_context": st.session_state.last_image_context,
+                    "is_followup": is_followup
+                },
+                timeout=400
+            )
 
-                if response.status_code == 200:
-                    data = response.json()
-                    reply = data.get("result", "")
-                    source = data.get("source", "")
+            if response.status_code != 200:
+                st.error("❌ Backend error occurred. Check FastAPI logs.")
+                st.stop()
 
-                    if source:
-                        reply += f"\n\n*Source: {source}*"
+            data = response.json()
+            text = data.get("text", "")
+            images = data.get("images", [])
 
-                    st.markdown(reply)
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": reply}
-                    )
-                else:
-                    st.error("Backend error")
-            except ConnectionError:
-                st.error("❌ Cannot connect to backend server. Please ensure the API is running on http://localhost:8000")
-            except requests.exceptions.Timeout:
-                st.error("⏱️ Request timed out. The backend server may be processing slowly.")
+            if text:
+                st.markdown(text)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "type": "text",
+                    "content": text
+                })
 
-# ==================== DOWNLOAD SECTION ====================
+            # Update text context only if NO image
+            if text and not images:
+                st.session_state.last_text_context = text
+            else:
+                st.session_state.last_text_context = None
+
+            if images:
+                st.markdown("🖼️ **Generated Image:**")
+                for img_path in images:
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "type": "image",
+                        "content": img_path
+                    })
+                    st.image(img_path, width=350)
+
+                st.session_state.last_image_context = {
+                    "prompt": prompt,
+                    "final_image": images[-1],
+                    "semantic_hint": prompt
+                }
+            else:
+                st.session_state.last_image_context = None
+
+
+# ================= DOWNLOADS =================
 if st.session_state.messages:
     st.divider()
-    st.subheader("📥 Download Conversation")
-    
-    col_download1, col_download2, col_download3, col_download4 = st.columns(4)
-    
-    with col_download1:
-        if st.button("📄 Download as PDF", use_container_width=True):
-            try:
-                pdf_data = generate_pdf_from_conversation(st.session_state.messages)
-                st.download_button(
-                    label="📥 Download PDF",
-                    data=pdf_data,
-                    file_name="conversation.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.error(f"Error generating PDF: {str(e)}")
-    
-    with col_download2:
-        if st.button("📋 Download as TXT", use_container_width=True):
-            try:
-                # Create conversation text
-                conversation_text = "AI Agent Assistant - Conversation\n"
-                conversation_text += "=" * 50 + "\n\n"
-                
-                for msg in st.session_state.messages:
-                    role = msg["role"].upper()
-                    content = msg["content"]
-                    conversation_text += f"{role}:\n{content}\n\n"
-                    conversation_text += "-" * 50 + "\n\n"
-                
-                st.download_button(
-                    label="📥 Download TXT",
-                    data=conversation_text,
-                    file_name="conversation.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.error(f"Error preparing file: {str(e)}")
-    
-    with col_download3:
-        if st.button("📋 Copy to Clipboard", use_container_width=True):
-            try:
-                conversation_text = ""
-                for msg in st.session_state.messages:
-                    role = msg["role"].upper()
-                    content = msg["content"]
-                    conversation_text += f"{role}:\n{content}\n\n"
-                
-                st.success("✅ Conversation copied! (Use Ctrl+V to paste)")
-                st.code(conversation_text)
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-    
-    with col_download4:
-        if st.button("🔄 Clear Chat", use_container_width=True):
+    col1, col2, col3, col4 = st.columns(4)
+
+    # 📄 PDF
+    with col1:
+        st.download_button(
+            "📄 Download PDF",
+            generate_pdf_from_conversation(st.session_state.messages),
+            "conversation.pdf"
+        )
+
+    # 📋 TXT
+    with col2:
+        txt = ""
+        for m in st.session_state.messages:
+            if m["type"] == "text":
+                txt += f"{m['role'].upper()}:\n{m['content']}\n\n"
+        st.download_button("📋 Download TXT", txt, "conversation.txt")
+
+    # ⧉ COPY
+    with col3:
+        clipboard_text = ""
+        for m in st.session_state.messages:
+            if m["type"] == "text":
+                clipboard_text += f"{m['role'].upper()}:\n{m['content']}\n\n"
+
+        escaped_text = (
+            clipboard_text
+            .replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+        )
+
+        st.components.v1.html(
+            f"""
+            <div style="text-align:left;">
+                <button onclick="copyText()" style="background:none;border:none;cursor:pointer;font-size:18px;">
+                    ⧉ Copy
+                </button>
+            </div>
+            <script>
+            function copyText() {{
+                navigator.clipboard.writeText(`{escaped_text}`);
+            }}
+            </script>
+            """,
+            height=40
+        )
+
+    # 🔄 CLEAR
+    with col4:
+        if st.button("🔄 Clear Chat"):
             st.session_state.messages = []
-            st.session_state.attached_doc = None
-            st.session_state.doc_processed = False
             st.rerun()

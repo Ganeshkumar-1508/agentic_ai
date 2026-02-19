@@ -1,137 +1,269 @@
-from fastapi import FastAPI, UploadFile, File
+import crew_config
+from fastapi import FastAPI
 from pydantic import BaseModel
-import shutil
-import os
 import uvicorn
-from io import BytesIO
-from crew import crew
-from cache.cache_manager import get_from_cache, store_in_cache, delete_from_cache
 
+from planner import plan_steps, planner_llm
+from crew_orchestrator import run_crew
+
+# ==============================
+# FASTAPI APP
+# ==============================
 app = FastAPI()
 
-
+# ==============================
+# REQUEST MODEL
+# ==============================
 class QueryRequest(BaseModel):
     query: str
-    document_context: str | None = None
+    context: str | None = None
+    image_context: dict | None = None
+    is_followup: bool = False
+
+# ==============================
+# INTENT HELPERS
+# ==============================
+def user_wants_new_image(text: str) -> bool:
+    t = text.lower()
+    return any(k in t for k in [
+        "generate image",
+        "create image",
+        "draw",
+        "show image",
+        "image of",
+        "picture of"
+    ])
+
+def refers_to_existing_image(text: str) -> bool:
+    t = text.lower()
+    return any(k in t for k in [
+        "this image",
+        "above image",
+        "that image",
+        "the image",
+        "given image",
+        "this picture",
+        "above picture"
+    ])
+
+# ==============================
+# SEMANTIC HELPERS (LLM BASED)
+# ==============================
+def is_same_text_topic(previous_text: str | None, new_query: str) -> bool:
+    if not previous_text:
+        return False
+
+    prompt = f"""
+Answer ONLY YES or NO.
+
+Previous explanation:
+{previous_text}
+
+New user question:
+{new_query}
+
+Question:
+Does the new question DEPEND on the previous explanation to make sense?
+"""
+    try:
+        resp = planner_llm.call([
+            {"role": "system", "content": "You are a strict semantic classifier."},
+            {"role": "user", "content": prompt}
+        ])
+        return resp.strip().upper().startswith("YES")
+    except Exception:
+        return False
 
 
-class DocumentRequest(BaseModel):
-    format: str = "txt"  # txt, pdf, docx
+def is_same_image_topic(image_context: dict | None, new_query: str) -> bool:
+    if not image_context:
+        return False
 
+    prompt = f"""
+Answer ONLY YES or NO.
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+Previously generated image description:
+{image_context.get("semantic_hint", image_context.get("prompt", ""))}
 
+New user request:
+{new_query}
 
-# ==================== GENERATE REPORT FUNCTION ====================
-def generate_report(topic: str):
-    """
-    Generate a report for the given topic using cached data if available.
-    
-    This function:
-    1. Checks if the answer exists in cache
-    2. If found in cache, returns cached answer immediately
-    3. If not found, fetches fresh data from web using CrewAI
-    4. Stores the new answer in cache for future use
-    """
-    # Check cache first
-    cached_answer = get_from_cache(topic)
-    
-    if cached_answer:
-        return {"output": cached_answer, "from_cache": True}
-    
-    # If cache miss, fetch from web
-    result = crew.kickoff(inputs={"topic": topic})
-    
-    # Store in cache for future use
-    result_str = str(result.raw if hasattr(result, 'raw') else result)
-    store_in_cache(topic, result_str)
-    
-    return {"output": result_str, "from_cache": False}
+Question:
+Is the new request referring to or dependent on the SAME image?
+"""
+    try:
+        resp = planner_llm.call([
+            {"role": "system", "content": "You are a strict semantic classifier."},
+            {"role": "user", "content": prompt}
+        ])
+        return resp.strip().upper().startswith("YES")
+    except Exception:
+        return False
 
-# ---------------------------
-# document upload (optional)
-# ---------------------------
-@app.post("/process-document")
-async def process_document(file: UploadFile = File(...)):
-    filename = file.filename or "uploaded_file"
-    path = os.path.join(UPLOAD_DIR, filename)
-
-    with open(path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    return {"status": "stored", "filename": file.filename}
-
-
-# ---------------------------
-# chat endpoint (MAIN)
-# ---------------------------
+# ==============================
+# MAIN ORCHESTRATOR
+# ==============================
 @app.post("/process-query")
 async def process_query(req: QueryRequest):
-    try:
-        topic = req.query
-        
-        # Generate report using cache-first approach
-        result = generate_report(topic)
-        
-        return {
-            "result": result["output"],
-            "from_cache": result["from_cache"],
-            "source": None
-        }
-    except Exception as e:
-        return {
-            "result": f"Error: {str(e)}",
-            "from_cache": False,
-            "source": None,
-            "error": True
-        }
 
+    clean_query = req.query.strip()
+    wants_image = user_wants_new_image(clean_query)
 
-# ---------------------------
-# document generation endpoint
-# ---------------------------
-@app.post("/generate-document")
-async def generate_document(req: DocumentRequest):
-    """
-    Generate document in the requested format.
-    For now, returns a simple text-based response.
-    """
-    format_type = req.format.lower()
-    
-    # Create a simple document content
-    content = "Generated Document\n\n" + \
-              "This is a placeholder for the generated document.\n" + \
-              "To enable full document generation with conversation history, " + \
-              "please implement document generation logic.\n"
-    
-    if format_type == "txt":
-        return {
-            "data": content,
-            "format": "txt",
-            "mime": "text/plain"
-        }
-    elif format_type == "pdf":
-        # Placeholder - would need python-pptx or similar
-        return {
-            "data": content,
-            "format": "pdf",
-            "mime": "application/pdf"
-        }
-    elif format_type == "docx":
-        # Placeholder - would need python-docx
-        return {
-            "data": content,
-            "format": "docx",
-            "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        }
+    # ---------------------------------
+    # SEMANTIC CHECKS
+    # ---------------------------------
+    same_text = is_same_text_topic(req.context, clean_query) if req.context else False
+    same_image = is_same_image_topic(req.image_context, clean_query) if req.image_context else False
+    refers_image = refers_to_existing_image(clean_query)
+
+    print("\n========== DEBUG SEMANTIC ==========")
+    print("Text context exists:", req.context is not None)
+    print("Image context exists:", req.image_context is not None)
+    print("User wants image:", wants_image)
+    print("Same text topic:", same_text)
+    print("Same image topic:", same_image)
+    print("Refers to existing image:", refers_image)
+    print("===================================\n")
+
+    # ---------------------------------
+    # FINAL INTENT DECISION
+    # ---------------------------------
+    if wants_image:
+        intent = "IMAGE_REQUEST"
+        req.context = None
+        req.image_context = None
+
+    elif req.image_context and refers_image:
+        intent = "IMAGE_FOLLOWUP"
+
+    elif same_image:
+        intent = "IMAGE_FOLLOWUP"
+
+    elif same_text:
+        intent = "TEXT_FOLLOWUP"
+
     else:
-        return {
-            "data": content,
-            "format": "txt",
-            "mime": "text/plain"
-        }
+        intent = "NEW_TOPIC"
+        req.context = None
+        req.image_context = None
 
+    req.is_followup = intent in ("TEXT_FOLLOWUP", "IMAGE_FOLLOWUP")
 
+    print("\n========== DEBUG INTENT ==========")
+    print("Detected intent:", intent)
+    print("=================================\n")
+
+    # ---------------------------------
+    # PLANNER INPUT
+    # ---------------------------------
+    planner_input = clean_query
+
+    if intent == "NEW_TOPIC" and not wants_image:
+        planner_input = f"""
+This is a TEXT-ONLY request.
+DO NOT generate images.
+
+User request:
+{clean_query}
+"""
+
+    if intent == "TEXT_FOLLOWUP":
+        planner_input = f"""
+Previous explanation:
+{req.context}
+
+The user is asking a FOLLOW-UP question.
+DO NOT change topic.
+
+User request:
+{clean_query}
+"""
+
+    elif intent == "IMAGE_FOLLOWUP":
+        planner_input = f"""
+An image has already been generated.
+
+Image description:
+{req.image_context.get("semantic_hint", req.image_context.get("prompt", ""))}
+
+The user is asking a FOLLOW-UP question.
+DO NOT generate a new image.
+
+User request:
+{clean_query}
+"""
+
+    print("\n========== DEBUG PLANNER INPUT ==========")
+    print(planner_input)
+    print("========================================\n")
+
+    plan = plan_steps(planner_input)
+
+    print("\n========== DEBUG PLANNER OUTPUT ==========")
+    print(plan)
+    print("=========================================\n")
+
+    # ---------------------------------
+    # HARD LOCK IMAGE ON IMAGE FOLLOW-UP
+    # ---------------------------------
+    if intent == "IMAGE_FOLLOWUP":
+        plan["steps"] = [
+            step for step in plan.get("steps", [])
+            if step.get("agent") != "IMAGE"
+        ]
+
+    if not plan.get("steps"):
+        plan["steps"] = [{"agent": "TEXT", "input": clean_query}]
+
+    print("\n========== DEBUG PLAN AFTER LOCK ==========")
+    print(plan)
+    print("==========================================\n")
+
+    # ---------------------------------
+    # EXECUTION QUERY
+    # ---------------------------------
+    execution_query = clean_query
+
+    if intent == "TEXT_FOLLOWUP":
+        execution_query += f"""
+Previous explanation:
+{req.context}
+
+Answer in continuation.
+"""
+
+    if intent == "IMAGE_FOLLOWUP":
+        execution_query += f"""
+CRITICAL IMAGE CONTEXT:
+An image HAS ALREADY BEEN GENERATED.
+
+RULES:
+- DO NOT generate a new image
+- ONLY explain the existing image
+"""
+
+    print("\n========== DEBUG EXECUTION QUERY ==========")
+    print(execution_query)
+    print("==========================================\n")
+
+    # ---------------------------------
+    # RUN CREW
+    # ---------------------------------
+    crew_result = run_crew(plan, execution_query)
+
+    print("\n========== DEBUG CREW RESULT ==========")
+    print(crew_result)
+    print("======================================\n")
+
+    return {
+        "text": crew_result.get("text", ""),
+        "images": crew_result.get("images", []),
+        "context": crew_result.get("text", None),
+        "image_context": req.image_context
+    }
+
+# ==============================
+# RUN SERVER
+# ==============================
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
