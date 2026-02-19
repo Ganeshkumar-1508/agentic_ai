@@ -166,7 +166,7 @@ if prompt:
                     "image_context": st.session_state.last_image_context,
                     "is_followup": is_followup
                 },
-                timeout=300
+                timeout=600
             )
 
             if response.status_code != 200:

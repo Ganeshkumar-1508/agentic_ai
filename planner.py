@@ -8,6 +8,7 @@ planner_llm = LLM(
     model=os.getenv("LITELLM_MODEL"),
     api_key=os.getenv("NVIDIA_API_KEY"),
     base_url=os.getenv("LITELLM_BASE_URL"),
+    stop=["</s>"]
 )
 
 PLANNER_PROMPT = """
