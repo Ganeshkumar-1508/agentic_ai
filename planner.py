@@ -25,8 +25,8 @@ RULES:
 2. If user asks for chart/graph/visualize → DATA
 3. If input contains multiple numbers → DATA
 4. Otherwise → TEXT
-5. If the user explicitly requests to generate, draw, create, or produce an image,
-   you MUST include one IMAGE step.
+5. If numeric data exists AND chart requested → use DATA agent ONLY
+DO NOT use IMAGE agent
 6. If the user requests explanation, report, code, story, analysis,
    you MUST include one TEXT step.
 7. If the user requests BOTH image AND explanation/story/report,
