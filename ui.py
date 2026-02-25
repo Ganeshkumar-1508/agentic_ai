@@ -117,6 +117,9 @@ if "last_text_context" not in st.session_state:
 if "last_image_context" not in st.session_state:
     st.session_state.last_image_context = None
 
+if "last_audio_path" not in st.session_state:
+    st.session_state.last_audio_path = None
+
 # ================= CHAT HISTORY =================
 st.divider()
 
@@ -127,7 +130,7 @@ for msg in st.session_state.messages:
         elif msg["type"] == "image":
             st.image(msg["content"], width=350)
 
-# ================= INPUT =================
+# ================= INPUT (MUST BE LAST) =================
 prompt = st.chat_input("Ask anything")
 
 if prompt:
@@ -143,7 +146,6 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("🔍 Generating..."):
 
-            # Follow-up only if image exists
             is_followup = st.session_state.last_image_context is not None
 
             response = requests.post(
@@ -164,6 +166,7 @@ if prompt:
             data = response.json()
             text = data.get("text", "")
             images = data.get("images", [])
+            audio = data.get("audio")
 
             if text:
                 st.markdown(text)
@@ -173,7 +176,9 @@ if prompt:
                     "content": text
                 })
 
-            # Update text context only if NO image
+            # 🔊 store audio (manual play only)
+            st.session_state.last_audio_path = audio if audio else None
+
             if text and not images:
                 st.session_state.last_text_context = text
             else:
@@ -197,11 +202,10 @@ if prompt:
             else:
                 st.session_state.last_image_context = None
 
-
-# ================= DOWNLOADS =================
+# ================= DOWNLOADS + MIC =================
 if st.session_state.messages:
     st.divider()
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     # 📄 PDF
     with col1:
@@ -219,7 +223,7 @@ if st.session_state.messages:
                 txt += f"{m['role'].upper()}:\n{m['content']}\n\n"
         st.download_button("📋 Download TXT", txt, "conversation.txt")
 
-    # ⧉ COPY
+    # ⧉ COPY (YOUR ORIGINAL CODE – UNTOUCHED)
     with col3:
         clipboard_text = ""
         for m in st.session_state.messages:
@@ -253,4 +257,14 @@ if st.session_state.messages:
     with col4:
         if st.button("🔄 Clear Chat"):
             st.session_state.messages = []
+            st.session_state.last_audio_path = None
             st.rerun()
+
+    # 🎤 MIC (ONLY ADDITION)
+    with col5:
+        if st.session_state.last_audio_path:
+            if st.button("🎤 Play Audio"):
+                audio_url = f"{FASTAPI_URL}/{st.session_state.last_audio_path}".replace("\\", "/")
+                st.audio(audio_url, format="audio/mp3")
+        else:
+            st.empty()

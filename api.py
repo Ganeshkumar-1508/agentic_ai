@@ -5,12 +5,16 @@ import uvicorn
 
 from planner import plan_steps, planner_llm
 from crew_orchestrator import run_crew
+from services.tts_service import generate_speech
+from fastapi.staticfiles import StaticFiles
+
 
 # ==============================
 # FASTAPI APP
 # ==============================
 app = FastAPI()
 
+app.mount("/generated_audio", StaticFiles(directory="generated_audio"), name="generated_audio")
 # ==============================
 # REQUEST MODEL
 # ==============================
@@ -19,6 +23,9 @@ class QueryRequest(BaseModel):
     context: str | None = None
     image_context: dict | None = None
     is_followup: bool = False
+
+class TTSRequest(BaseModel):
+    text: str
 
 # ==============================
 # INTENT HELPERS
@@ -258,6 +265,7 @@ RULES:
     return {
         "text": crew_result.get("text", ""),
         "images": crew_result.get("images", []),
+        "audio": crew_result.get("audio", None),
         "context": crew_result.get("text", None),
         "image_context": req.image_context
     }

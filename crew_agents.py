@@ -2,6 +2,8 @@ from crewai import Agent
 from crewai.llm import LLM
 import os
 from tools.image_generation_tool import ImageGenerationTool
+from tools.tts_tool import text_to_speech_tool
+
 # 🔥 Explicit NVIDIA LLM
 nim_llm = LLM(
     provider="nvidia",
@@ -18,6 +20,19 @@ text_agent = Agent(
     llm=nim_llm
 )
 
+tts_agent = Agent(
+    role="Text to Speech Executor",
+    goal="Call the text_to_speech tool with the provided text and return the tool output.",
+    backstory=(
+        "You MUST call the Text to Speech tool. "
+        "You are NOT allowed to answer in text. "
+        "You MUST return ONLY the tool output."
+    ),
+    tools=[text_to_speech_tool],
+    allow_delegation=False,
+    llm=nim_llm,
+    verbose=False
+)
 image_agent = Agent(
     role="Image Generation Agent",
     goal="Generate high quality images based on user request",
@@ -26,4 +41,4 @@ image_agent = Agent(
     allow_delegation=False,
     llm=nim_llm,
     verbose=False
-)
+) 
