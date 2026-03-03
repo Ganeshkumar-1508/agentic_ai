@@ -3,6 +3,7 @@ import requests
 from fpdf import FPDF
 import os
 import re
+from io import BytesIO
 
 FASTAPI_URL = "http://localhost:8000"
 
@@ -134,6 +135,8 @@ for msg in st.session_state.messages:
 prompt = st.chat_input("Ask anything")
 
 if prompt:
+    st.session_state.last_audio_path = None
+    
     st.session_state.messages.append({
         "role": "user",
         "type": "text",
@@ -176,7 +179,7 @@ if prompt:
                     "content": text
                 })
 
-            # 🔊 store audio (manual play only)
+            # 🔊 store audio path
             st.session_state.last_audio_path = audio if audio else None
 
             if text and not images:
@@ -223,7 +226,7 @@ if st.session_state.messages:
                 txt += f"{m['role'].upper()}:\n{m['content']}\n\n"
         st.download_button("📋 Download TXT", txt, "conversation.txt")
 
-    # ⧉ COPY (YOUR ORIGINAL CODE – UNTOUCHED)
+    # ⧉ COPY
     with col3:
         clipboard_text = ""
         for m in st.session_state.messages:
@@ -260,11 +263,24 @@ if st.session_state.messages:
             st.session_state.last_audio_path = None
             st.rerun()
 
-    # 🎤 MIC (ONLY ADDITION)
+    # 🎤 AUDIO PLAYER (FIXED - BYTES-BASED)
     with col5:
         if st.session_state.last_audio_path:
             if st.button("🎤 Play Audio"):
-                audio_url = f"{FASTAPI_URL}/{st.session_state.last_audio_path}".replace("\\", "/")
-                st.audio(audio_url, format="audio/mp3")
+                try:
+                    # Extract filename from path
+                    filename = st.session_state.last_audio_path.split("/")[-1]
+                    audio_url = f"{FASTAPI_URL}/audio/{filename}"
+                    
+                    # ✅ Fetch audio as bytes (fixes truncation issue)
+                    response = requests.get(audio_url, timeout=60)
+                    if response.status_code == 200:
+                        st.audio(BytesIO(response.content), format="audio/wav")
+                    else:
+                        st.error(f"❌ Failed to load audio (HTTP {response.status_code})")
+                except requests.Timeout:
+                    st.error("❌ Audio download timeout (>60 seconds)")
+                except Exception as e:
+                    st.error(f"❌ Audio error: {str(e)[:100]}")
         else:
             st.empty()

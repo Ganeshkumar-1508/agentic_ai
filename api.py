@@ -1,12 +1,12 @@
 import crew_config
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uvicorn
+from pathlib import Path
 
 from planner import plan_steps, planner_llm
 from crew_orchestrator import run_crew
-from services.tts_service import generate_speech
-from fastapi.staticfiles import StaticFiles
 
 
 # ==============================
@@ -14,7 +14,28 @@ from fastapi.staticfiles import StaticFiles
 # ==============================
 app = FastAPI()
 
-app.mount("/generated_audio", StaticFiles(directory="generated_audio"), name="generated_audio")
+# ✅ Custom audio endpoint with proper headers
+@app.get("/audio/{filename}")
+async def serve_audio(filename: str):
+    """Serve audio files with proper HTTP headers for streaming and seeking."""
+    # Security: prevent directory traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    
+    filepath = Path("generated_audio") / filename
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    
+    return FileResponse(
+        filepath,
+        media_type="audio/wav",
+        headers={
+            "Content-Disposition": f"inline; filename={filename}",
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "no-cache, must-revalidate",
+        }
+    )
+
 # ==============================
 # REQUEST MODEL
 # ==============================
@@ -254,7 +275,7 @@ RULES:
     print("==========================================\n")
 
     # ---------------------------------
-    # RUN CREW
+    # RUN CREW (includes TTS now)
     # ---------------------------------
     crew_result = run_crew(plan, execution_query)
 
