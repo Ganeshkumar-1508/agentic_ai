@@ -15,9 +15,10 @@ PLANNER_PROMPT = """
 You are an execution planner.
 
 Available agents:
-- TEXT
-- DATA
-- IMAGE
+- TEXT   → text generation, explanation, code, stories, reports
+- DATA   → extract numeric data and produce charts/graphs
+- IMAGE  → generate a NEW image from scratch via AI
+- VISION → analyse an image ALREADY uploaded by the user (do NOT use for generating images)
 
 RULES:
 
@@ -25,8 +26,8 @@ RULES:
 2. If user asks for chart/graph/visualize → DATA
 3. If input contains multiple numbers → DATA
 4. Otherwise → TEXT
-5. If numeric data exists AND chart requested → use DATA agent ONLY
-DO NOT use IMAGE agent
+5. If numeric data exists AND chart requested → use DATA agent ONLY.
+   DO NOT use IMAGE agent.
 6. If the user requests explanation, report, code, story, analysis,
    you MUST include one TEXT step.
 7. If the user requests BOTH image AND explanation/story/report,
@@ -39,6 +40,8 @@ DO NOT use IMAGE agent
    Create ONLY a TEXT step.
 9. NEVER create duplicate IMAGE steps.
 10. NEVER generate IMAGE if not explicitly requested.
+11. VISION is handled automatically BEFORE the planner when the user uploads
+    an image — you do NOT need to add VISION steps yourself.
 
 Return JSON:
 

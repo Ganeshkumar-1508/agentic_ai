@@ -42,3 +42,24 @@ image_agent = Agent(
     verbose=False
 )
 
+# Vision agent — analyses user-uploaded images
+# Uses a multimodal-capable LLM (same NVIDIA endpoint; swap model if needed)
+vision_llm = LLM(
+    provider="nvidia",
+    model=os.getenv("VISION_MODEL", os.getenv("LITELLM_MODEL")),
+    api_key=os.getenv("NVIDIA_API_KEY"),
+    base_url=os.getenv("LITELLM_BASE_URL"),
+    stop=["</s>"]
+)
+
+vision_agent = Agent(
+    role="Vision Analysis Agent",
+    goal="Analyse and describe images uploaded by the user, answering any questions about them",
+    backstory=(
+        "You are an expert visual analyst. You receive an image together with a user question "
+        "and provide a detailed, accurate, and helpful textual response about the image content."
+    ),
+    allow_delegation=False,
+    llm=vision_llm,
+    verbose=False
+)

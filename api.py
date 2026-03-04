@@ -2,6 +2,7 @@ import crew_config
 from fastapi import FastAPI
 from pydantic import BaseModel
 import uvicorn
+from typing import Optional
 
 from planner import plan_steps, planner_llm
 from crew_orchestrator import run_crew
@@ -14,9 +15,12 @@ app = FastAPI()
 
 class QueryRequest(BaseModel):
     query: str
-    context: str | None = None
-    image_context: dict | None = None
+    context: Optional[str] = None
+    image_context: Optional[dict] = None
     is_followup: bool = False
+    # New: user-uploaded image for vision analysis
+    input_image_b64: Optional[str] = None
+    input_image_media_type: Optional[str] = None
 
 
 def user_wants_new_image(text: str) -> bool:
@@ -102,6 +106,41 @@ Is the new request referring to or dependent on the SAME image?
 async def process_query(req: QueryRequest):
 
     clean_query = req.query.strip()
+
+    # ── VISION SHORT-CIRCUIT ─────────────────────────────────────────────────
+    # If the user uploaded an image, route directly to VISION regardless of
+    # any other intent logic.
+    if req.input_image_b64:
+        plan = {
+            "steps": [
+                {
+                    "agent": "VISION",
+                    "input": clean_query,
+                    "image_b64": req.input_image_b64,
+                    "image_media_type": req.input_image_media_type or "image/jpeg"
+                }
+            ]
+        }
+
+        print("\n========== DEBUG INTENT ==========")
+        print("Detected intent: IMAGE_ANALYSIS (user uploaded image)")
+        print("=================================\n")
+
+        crew_result = run_crew(plan, clean_query)
+
+        print("\n========== DEBUG CREW RESULT ==========")
+        print(crew_result)
+        print("======================================\n")
+
+        # Store text response as context for follow-ups
+        return {
+            "text": crew_result.get("text", ""),
+            "images": crew_result.get("images", []),
+            "context": crew_result.get("text", None),
+            "image_context": None
+        }
+    # ─────────────────────────────────────────────────────────────────────────
+
     wants_image = user_wants_new_image(clean_query)
 
     same_text = is_same_text_topic(req.context, clean_query) if req.context else False

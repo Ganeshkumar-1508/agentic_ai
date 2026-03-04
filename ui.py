@@ -3,6 +3,9 @@ import requests
 from fpdf import FPDF
 import os
 import re
+import base64
+from PIL import Image
+import io
 
 FASTAPI_URL = "http://localhost:8000"
 
@@ -103,11 +106,33 @@ def generate_pdf_from_conversation(messages):
     return bytes(pdf.output(dest="S"))
 
 
+def encode_image_to_base64(uploaded_file) -> str:
+    """Encode a Streamlit uploaded file to base64 string."""
+    bytes_data = uploaded_file.read()
+    # Reset pointer so it can be displayed again
+    uploaded_file.seek(0)
+    return base64.b64encode(bytes_data).decode("utf-8")
+
+
+def get_image_media_type(uploaded_file) -> str:
+    """Derive MIME type from file extension."""
+    name = uploaded_file.name.lower()
+    if name.endswith(".png"):
+        return "image/png"
+    elif name.endswith(".jpg") or name.endswith(".jpeg"):
+        return "image/jpeg"
+    elif name.endswith(".gif"):
+        return "image/gif"
+    elif name.endswith(".webp"):
+        return "image/webp"
+    return "image/jpeg"
+
+
 # UI 
 
 st.set_page_config(page_title="AI Agent Assistant", page_icon="🤖", layout="wide")
 st.title("🤖 Chat with AI Assistant")
-st.caption("Chat with AI by giving a query")
+st.caption("Chat with AI by giving a query — or upload an image for analysis")
 
 # Backend check
 try:
@@ -137,20 +162,55 @@ for msg in st.session_state.messages:
             st.markdown(msg["content"])
         elif msg["type"] == "image":
             st.image(msg["content"], width=350)
+        elif msg["type"] == "uploaded_image":
+            # Display user-uploaded images inline in history
+            st.image(msg["content"], width=350, caption="📎 Uploaded image")
+
+# ── IMAGE UPLOAD WIDGET ──────────────────────────────────────────────────────
+with st.expander("📎 Attach an image for analysis", expanded=False):
+    uploaded_image = st.file_uploader(
+        "Upload an image (PNG, JPG, JPEG, WEBP, GIF)",
+        type=["png", "jpg", "jpeg", "webp", "gif"],
+        key="image_uploader"
+    )
+    if uploaded_image:
+        st.image(uploaded_image, width=300, caption="Preview — ask a question below to analyse this image")
 
 #INPUT
 
-prompt = st.chat_input("Ask anything")
+prompt = st.chat_input("Ask anything (or ask about the uploaded image)")
 
 if prompt:
+    # --- Encode uploaded image if present ---
+    image_b64 = None
+    image_media_type = None
+    if uploaded_image is not None:
+        image_b64 = encode_image_to_base64(uploaded_image)
+        image_media_type = get_image_media_type(uploaded_image)
+
+    # Show user message
     st.session_state.messages.append({
         "role": "user",
         "type": "text",
         "content": prompt
     })
 
+    # If the user attached an image, also log it in history
+    if image_b64:
+        # Store raw bytes for display (re-read from upload)
+        raw_bytes = base64.b64decode(image_b64)
+        pil_img = Image.open(io.BytesIO(raw_bytes))
+        # We keep it as a PIL image reference; for history we'll store b64
+        st.session_state.messages.append({
+            "role": "user",
+            "type": "uploaded_image",
+            "content": pil_img   # PIL image renders fine with st.image
+        })
+
     with st.chat_message("user"):
         st.markdown(prompt)
+        if image_b64:
+            st.image(Image.open(io.BytesIO(base64.b64decode(image_b64))), width=300)
 
     with st.chat_message("assistant"):
         with st.spinner("🔍 Generating..."):
@@ -164,7 +224,10 @@ if prompt:
                     "query": prompt,
                     "context": st.session_state.last_text_context,
                     "image_context": st.session_state.last_image_context,
-                    "is_followup": is_followup
+                    "is_followup": is_followup,
+                    # New fields for vision:
+                    "input_image_b64": image_b64,
+                    "input_image_media_type": image_media_type
                 },
                 timeout=600
             )
@@ -185,7 +248,7 @@ if prompt:
                     "content": text
                 })
 
-            # Update text context only if NO image
+            # Update text context only if NO generated image
             if text and not images:
                 st.session_state.last_text_context = text
             else:
@@ -218,9 +281,11 @@ if st.session_state.messages:
 
     # PDF
     with col1:
+        # Filter only serialisable messages for PDF
+        pdf_messages = [m for m in st.session_state.messages if m["type"] in ("text", "image")]
         st.download_button(
             "📄 Download PDF",
-            generate_pdf_from_conversation(st.session_state.messages),
+            generate_pdf_from_conversation(pdf_messages),
             "conversation.pdf"
         )
 
