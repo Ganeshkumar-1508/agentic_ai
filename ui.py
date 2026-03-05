@@ -6,6 +6,7 @@ import re
 import base64
 from PIL import Image
 import io
+from io import BytesIO
 
 FASTAPI_URL = "http://localhost:8000"
 
@@ -152,8 +153,10 @@ if "last_text_context" not in st.session_state:
 if "last_image_context" not in st.session_state:
     st.session_state.last_image_context = None
 
-#CHAT HISTORY 
+if "last_audio_path" not in st.session_state:
+    st.session_state.last_audio_path = None
 
+# ================= CHAT HISTORY =================
 st.divider()
 
 for msg in st.session_state.messages:
@@ -182,13 +185,14 @@ prompt = st.chat_input("Ask anything (or ask about the uploaded image)")
 
 if prompt:
     # --- Encode uploaded image if present ---
+    st.session_state.last_audio_path = None
     image_b64 = None
     image_media_type = None
     if uploaded_image is not None:
         image_b64 = encode_image_to_base64(uploaded_image)
         image_media_type = get_image_media_type(uploaded_image)
-
-    # Show user message
+    
+    
     st.session_state.messages.append({
         "role": "user",
         "type": "text",
@@ -215,7 +219,6 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("🔍 Generating..."):
 
-            # Follow-up only if image exists
             is_followup = st.session_state.last_image_context is not None
 
             response = requests.post(
@@ -239,6 +242,7 @@ if prompt:
             data = response.json()
             text = data.get("text", "")
             images = data.get("images", [])
+            audio = data.get("audio")
 
             if text:
                 st.markdown(text)
@@ -248,7 +252,9 @@ if prompt:
                     "content": text
                 })
 
-            # Update text context only if NO generated image
+            # 🔊 store audio path
+            st.session_state.last_audio_path = audio if audio else None
+
             if text and not images:
                 st.session_state.last_text_context = text
             else:
@@ -272,12 +278,10 @@ if prompt:
             else:
                 st.session_state.last_image_context = None
 
-
-# DOWNLOADS
-
+# ================= DOWNLOADS + MIC =================
 if st.session_state.messages:
     st.divider()
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     # PDF
     with col1:
@@ -332,3 +336,27 @@ if st.session_state.messages:
         if st.button("🔄 Clear Chat"):
             st.session_state.messages = []
             st.rerun()
+            st.session_state.last_audio_path = None
+            st.rerun()
+
+    # 🎤 AUDIO PLAYER (FIXED - BYTES-BASED)
+    with col5:
+        if st.session_state.last_audio_path:
+            if st.button("🎤 Play Audio"):
+                try:
+                    # Extract filename from path
+                    filename = st.session_state.last_audio_path.split("/")[-1]
+                    audio_url = f"{FASTAPI_URL}/audio/{filename}"
+                    
+                    # ✅ Fetch audio as bytes (fixes truncation issue)
+                    response = requests.get(audio_url, timeout=60)
+                    if response.status_code == 200:
+                        st.audio(BytesIO(response.content), format="audio/wav")
+                    else:
+                        st.error(f"❌ Failed to load audio (HTTP {response.status_code})")
+                except requests.Timeout:
+                    st.error("❌ Audio download timeout (>60 seconds)")
+                except Exception as e:
+                    st.error(f"❌ Audio error: {str(e)[:100]}")
+        else:
+            st.empty()

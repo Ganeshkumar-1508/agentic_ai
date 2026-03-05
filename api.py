@@ -1,16 +1,43 @@
 import crew_config
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uvicorn
 from typing import Optional
+from pathlib import Path
 
 from planner import plan_steps, planner_llm
 from crew_orchestrator import run_crew
 
 
+# ==============================
+# FASTAPI APP
+# ==============================
 app = FastAPI()
 
+# ✅ Custom audio endpoint with proper headers
+@app.get("/audio/{filename}")
+async def serve_audio(filename: str):
+    """Serve audio files with proper HTTP headers for streaming and seeking."""
+    # Security: prevent directory traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    
+    filepath = Path("generated_audio") / filename
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    
+    return FileResponse(
+        filepath,
+        media_type="audio/wav",
+        headers={
+            "Content-Disposition": f"inline; filename={filename}",
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "no-cache, must-revalidate",
+        }
+    )
 
+# ==============================
 # REQUEST MODEL
 
 class QueryRequest(BaseModel):
@@ -23,6 +50,12 @@ class QueryRequest(BaseModel):
     input_image_media_type: Optional[str] = None
 
 
+class TTSRequest(BaseModel):
+    text: str
+
+# ==============================
+# INTENT HELPERS
+# ==============================
 def user_wants_new_image(text: str) -> bool:
     t = text.lower()
     return any(k in t for k in [
@@ -33,7 +66,6 @@ def user_wants_new_image(text: str) -> bool:
         "image of",
         "picture of"
     ])
-
 
 def refers_to_existing_image(text: str) -> bool:
     t = text.lower()
@@ -47,9 +79,9 @@ def refers_to_existing_image(text: str) -> bool:
         "above picture"
     ])
 
-
-# SEMANTIC HELPERS
-
+# ==============================
+# SEMANTIC HELPERS (LLM BASED)
+# ==============================
 def is_same_text_topic(previous_text: str | None, new_query: str) -> bool:
     if not previous_text:
         return False
@@ -136,6 +168,7 @@ async def process_query(req: QueryRequest):
         return {
             "text": crew_result.get("text", ""),
             "images": crew_result.get("images", []),
+            "audio": crew_result.get("audio", None),
             "context": crew_result.get("text", None),
             "image_context": None
         }
@@ -143,6 +176,9 @@ async def process_query(req: QueryRequest):
 
     wants_image = user_wants_new_image(clean_query)
 
+    # ---------------------------------
+    # SEMANTIC CHECKS
+    # ---------------------------------
     same_text = is_same_text_topic(req.context, clean_query) if req.context else False
     same_image = is_same_image_topic(req.image_context, clean_query) if req.image_context else False
     refers_image = refers_to_existing_image(clean_query)
@@ -156,7 +192,9 @@ async def process_query(req: QueryRequest):
     print("Refers to existing image:", refers_image)
     print("===================================\n")
 
-
+    # ---------------------------------
+    # FINAL INTENT DECISION
+    # ---------------------------------
     if wants_image:
         intent = "IMAGE_REQUEST"
         req.context = None
@@ -192,13 +230,12 @@ async def process_query(req: QueryRequest):
     
     if intent == "NEW_TOPIC" and not wants_image and not req.image_context:
         planner_input = f"""
-    This is a TEXT-ONLY request.
-    DO NOT generate images, diagrams, or visual content.
+This is a TEXT-ONLY request.
+DO NOT generate images.
 
-    User request:
-    {clean_query}
-    """
-
+User request:
+{clean_query}
+"""
 
     if intent == "TEXT_FOLLOWUP":
         planner_input = f"""
@@ -219,7 +256,7 @@ An image has already been generated.
 Image description:
 {req.image_context.get("semantic_hint", req.image_context.get("prompt", ""))}
 
-The user is asking a FOLLOW-UP question about this image.
+The user is asking a FOLLOW-UP question.
 DO NOT generate a new image.
 
 User request:
@@ -270,13 +307,9 @@ Answer in continuation.
 CRITICAL IMAGE CONTEXT:
 An image HAS ALREADY BEEN GENERATED.
 
-Image description:
-{req.image_context.get("semantic_hint", req.image_context.get("prompt", ""))}
-
 RULES:
 - DO NOT generate a new image
-- DO NOT describe a new image
-- ONLY answer using the existing image
+- ONLY explain the existing image
 """
 
     print("\n========== DEBUG EXECUTION QUERY ==========")
@@ -295,6 +328,7 @@ RULES:
     return {
         "text": crew_result.get("text", ""),
         "images": crew_result.get("images", []),
+        "audio": crew_result.get("audio", None),
         "context": crew_result.get("text", None),
         "image_context": req.image_context
     }
