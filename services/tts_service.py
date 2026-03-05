@@ -1,4 +1,3 @@
-# services/tts_service.py
 import os
 import uuid
 import re
@@ -7,20 +6,17 @@ import wave
 import time
 import random
 
-print("🚀 LOADED NVIDIA MAGPIE TTS (gRPC / RIVA)")
+print("LOADED NVIDIA MAGPIE TTS (gRPC / RIVA)")
 print("🎧 OUTPUT FORMAT: WAV ONLY")
 
-# ===============================
+
 # PATHS
-# ===============================
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AUDIO_DIR = os.path.join(BASE_DIR, "generated_audio")
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
 
-# ===============================
-# TEXT NORMALIZATION FOR TTS
-# ===============================
 
 # Helper for years
 def year_to_speech(val):
@@ -109,7 +105,7 @@ def normalize_text_for_tts(text: str) -> str:
     text = text.replace("%", " percent ")
     text = text.replace("&", " and ")
     
-    # ✅ CRITICAL FIX: Smart Colon Handling
+    # CRITICAL FIX: Smart Colon Handling
     # A. Replace ratios like 1:2.33 with " to "
     text = re.sub(r"(\d)\s*:\s*(\d)", r"\1 to \2", text)
     
@@ -136,7 +132,7 @@ def normalize_text_for_tts(text: str) -> str:
         try:
             val = int(num_str)
             
-            # ✅ FIX: Handle YEARS specifically (1900-2099)
+            # FIX: Handle YEARS specifically (1900-2099)
             # This prevents "January 2022" -> "January 2 thousand..." -> "January second..."
             if 1900 <= val <= 2099:
                 return year_to_speech(val)
@@ -154,9 +150,9 @@ def normalize_text_for_tts(text: str) -> str:
     return text.strip()
 
 
-# ===============================
+
 # CLEAN TEXT FOR TTS
-# ===============================
+
 def clean_text_for_tts(text: str) -> str:
     # 1. Strip ALL HTML/XML Tags
     text = re.sub(r"<[^>]+>", "", text)
@@ -233,9 +229,6 @@ def clean_text_for_tts(text: str) -> str:
     return result
 
 
-# ===============================
-# TEXT CHUNKING (SMALLER CHUNKS FOR STABILITY)
-# ===============================
 def split_text(text: str, max_chars: int = 500): # Reduced from 1200
     chunks = []
     paragraphs = text.split('\n\n')
@@ -289,9 +282,9 @@ def split_text(text: str, max_chars: int = 500): # Reduced from 1200
     return chunks if chunks else [text.strip()]
 
 
-# ===============================
+
 # PCM → WAV
-# ===============================
+
 def pcm_to_wav(pcm_bytes: bytes, sample_rate: int = 22050) -> bytes:
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wf:
@@ -302,9 +295,7 @@ def pcm_to_wav(pcm_bytes: bytes, sample_rate: int = 22050) -> bytes:
     return buffer.getvalue()
 
 
-# ===============================
-# GENERATE SPEECH (ROBUST RETRY)
-# ===============================
+
 def generate_speech(text: str) -> str:
     print("🔊 EXECUTING MAGPIE TTS (gRPC Direct)")
 

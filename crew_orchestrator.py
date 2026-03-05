@@ -1,4 +1,3 @@
-# crew_orchestrator.py
 from crewai import Crew, Task
 from crew_agents import text_agent, data_agent, image_agent, vision_agent, get_tts_agent
 import pandas as pd
@@ -64,8 +63,7 @@ def analyse_image_with_vision_llm(image_b64: str, media_type: str, user_query: s
     base_url = os.getenv("LITELLM_BASE_URL", "").rstrip("/")
     model = os.getenv("VISION_MODEL", os.getenv("LITELLM_MODEL", ""))
 
-    # ── Try direct OpenAI-compatible vision call ─────────────────────────────
-    # Most NVIDIA NIM / LiteLLM endpoints accept the standard vision format.
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}"
@@ -105,9 +103,8 @@ def analyse_image_with_vision_llm(image_b64: str, media_type: str, user_query: s
         return data["choices"][0]["message"]["content"].strip()
 
     except Exception as e:
-        # ── Fallback: save image to disk and pass path in text prompt ────────
-        # This works when the model does NOT support vision but the user still
-        # wants *something* back.
+        # Fallback: save image to disk and pass path in text prompt 
+
         print(f"[VISION] Direct multimodal call failed ({e}), falling back to text description.")
 
         # Save image temporarily so we can at least reference it
@@ -161,11 +158,9 @@ def run_crew(plan: dict, user_query: str):
     text_task = None
 
     
-    # STEP 1: Execute steps sequentially
     
     for step in plan["steps"]:
 
-        # ── VISION AGENT (user-uploaded image analysis) ──────────────────────
         if step["agent"] == "VISION":
             image_b64 = step.get("image_b64", "")
             media_type = step.get("image_media_type", "image/jpeg")
@@ -175,8 +170,6 @@ def run_crew(plan: dict, user_query: str):
             if result_text:
                 text_outputs.append(result_text)
 
-
-        # DATA AGENT → CSV → CHART
 
         elif step["agent"] == "DATA":
 
@@ -213,7 +206,6 @@ def run_crew(plan: dict, user_query: str):
                 )
 
 
-        # TEXT AGENT
         
         elif step["agent"] == "TEXT":
 
@@ -236,7 +228,6 @@ def run_crew(plan: dict, user_query: str):
                 text_outputs.append(str(result).strip())
 
     
-        # IMAGE AGENT
         
         elif step["agent"] == "IMAGE":
 
@@ -264,10 +255,6 @@ def run_crew(plan: dict, user_query: str):
                     text_outputs.append(path)
 
     
-    # FINAL RESPONSE
-    
-    
-    # 3️⃣ Collect outputs
     #text_parts = []
     #image_paths = []
     
@@ -286,7 +273,7 @@ def run_crew(plan: dict, user_query: str):
     final_text = "\n\n".join(text_outputs)
     final_text = clean_text_for_ui(final_text)
     
-    # 4️⃣ 🔊 RUN TTS
+    # RUN TTS
     audio_path = None
     
     if final_text:
@@ -295,7 +282,7 @@ def run_crew(plan: dict, user_query: str):
         tts_input_filename = f"tts_input_{str(uuid_module.uuid4())[:8]}.txt"
         tts_input_filepath = os.path.join(AUDIO_DIR, tts_input_filename)
         
-        # ✅ DEBUG: Log text being saved
+        # Log text being saved
         print(f"💾 Saving TTS text to: {tts_input_filepath}")
         
         with open(tts_input_filepath, "w", encoding="utf-8") as f:
@@ -362,7 +349,3 @@ def run_crew(plan: dict, user_query: str):
         "images": image_paths,
         "audio": audio_path,
     }
-
-# return {
-#         "text": "\n\n".join(text_outputs),
-#         "images": image_paths, final_text

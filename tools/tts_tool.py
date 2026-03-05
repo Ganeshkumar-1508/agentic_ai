@@ -1,11 +1,10 @@
-# tools/tts_tool.py
 from crewai.tools import tool
 from services.tts_service import generate_speech
 import services.tts_service
 import time
 import os
 
-print("🔥🔥🔥 TTS SERVICE IMPORTED FROM:", services.tts_service.__file__)
+print("TTS SERVICE IMPORTED FROM:", services.tts_service.__file__)
 
 call_count = 0
 
@@ -19,7 +18,7 @@ def text_to_speech_tool(text: str) -> str:
     call_count += 1
     
     timestamp = time.time()
-    print(f"\n🔥 TTS TOOL CALLED [Call #{call_count}, Time: {timestamp}]")
+    print(f"\n TTS TOOL CALLED [Call #{call_count}, Time: {timestamp}]")
     print(f"📝 INPUT PREVIEW: {text[:100]}...")
     
     input_text = text

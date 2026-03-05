@@ -1,11 +1,10 @@
-# crew_agents.py
 from crewai import Agent
 from crewai.llm import LLM
 import os
 from tools.image_generation_tool import ImageGenerationTool
 from tools.tts_tool import text_to_speech_tool
 
-# 🔥 Explicit NVIDIA LLM
+# Explicit NVIDIA LLM
 nim_llm = LLM(
     provider="nvidia",
     model=os.getenv("LITELLM_MODEL"),
@@ -32,7 +31,7 @@ data_agent = Agent(
     allow_delegation=False,
     llm=nim_llm
 ) 
-# ✅ FINAL: Factory function with clear instructions for file handling
+# FINAL: Factory function with clear instructions for file handling
 def get_tts_agent():
     return Agent(
         role="TTS Tool Executor",
@@ -61,8 +60,7 @@ image_agent = Agent(
     verbose=False
 )
 
-# Vision agent — analyses user-uploaded images
-# Uses a multimodal-capable LLM (same NVIDIA endpoint; swap model if needed)
+
 vision_llm = LLM(
     provider="nvidia",
     model=os.getenv("VISION_MODEL", os.getenv("LITELLM_MODEL")),

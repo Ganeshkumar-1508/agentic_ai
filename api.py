@@ -10,12 +10,9 @@ from planner import plan_steps, planner_llm
 from crew_orchestrator import run_crew
 
 
-# ==============================
-# FASTAPI APP
-# ==============================
 app = FastAPI()
 
-# ✅ Custom audio endpoint with proper headers
+
 @app.get("/audio/{filename}")
 async def serve_audio(filename: str):
     """Serve audio files with proper HTTP headers for streaming and seeking."""
@@ -37,7 +34,7 @@ async def serve_audio(filename: str):
         }
     )
 
-# ==============================
+
 # REQUEST MODEL
 
 class QueryRequest(BaseModel):
@@ -53,9 +50,7 @@ class QueryRequest(BaseModel):
 class TTSRequest(BaseModel):
     text: str
 
-# ==============================
-# INTENT HELPERS
-# ==============================
+
 def user_wants_new_image(text: str) -> bool:
     t = text.lower()
     return any(k in t for k in [
@@ -79,9 +74,7 @@ def refers_to_existing_image(text: str) -> bool:
         "above picture"
     ])
 
-# ==============================
-# SEMANTIC HELPERS (LLM BASED)
-# ==============================
+
 def is_same_text_topic(previous_text: str | None, new_query: str) -> bool:
     if not previous_text:
         return False
@@ -139,9 +132,7 @@ async def process_query(req: QueryRequest):
 
     clean_query = req.query.strip()
 
-    # ── VISION SHORT-CIRCUIT ─────────────────────────────────────────────────
-    # If the user uploaded an image, route directly to VISION regardless of
-    # any other intent logic.
+
     if req.input_image_b64:
         plan = {
             "steps": [
@@ -172,13 +163,10 @@ async def process_query(req: QueryRequest):
             "context": crew_result.get("text", None),
             "image_context": None
         }
-    # ─────────────────────────────────────────────────────────────────────────
 
     wants_image = user_wants_new_image(clean_query)
 
-    # ---------------------------------
-    # SEMANTIC CHECKS
-    # ---------------------------------
+
     same_text = is_same_text_topic(req.context, clean_query) if req.context else False
     same_image = is_same_image_topic(req.image_context, clean_query) if req.image_context else False
     refers_image = refers_to_existing_image(clean_query)
@@ -192,9 +180,9 @@ async def process_query(req: QueryRequest):
     print("Refers to existing image:", refers_image)
     print("===================================\n")
 
-    # ---------------------------------
+    
     # FINAL INTENT DECISION
-    # ---------------------------------
+
     if wants_image:
         intent = "IMAGE_REQUEST"
         req.context = None
@@ -290,7 +278,7 @@ User request:
     print("==========================================\n")
 
     
-    # 🚀 EXECUTION QUERY
+    # EXECUTION QUERY
 
     execution_query = clean_query
 
@@ -317,7 +305,7 @@ RULES:
     print("==========================================\n")
 
     
-    # 🤖 RUN CREW
+    # RUN CREW
     
     crew_result = run_crew(plan, execution_query)
 

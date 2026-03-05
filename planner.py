@@ -2,7 +2,7 @@ import json
 from crewai.llm import LLM
 import os
 
-# Use SAME NVIDIA LLM as Crew
+# SAME NVIDIA LLM as Crew
 planner_llm = LLM(
     provider="nvidia",
     model=os.getenv("LITELLM_MODEL"),

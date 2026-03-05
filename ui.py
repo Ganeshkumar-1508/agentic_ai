@@ -156,7 +156,7 @@ if "last_image_context" not in st.session_state:
 if "last_audio_path" not in st.session_state:
     st.session_state.last_audio_path = None
 
-# ================= CHAT HISTORY =================
+#  CHAT HISTORY 
 st.divider()
 
 for msg in st.session_state.messages:
@@ -169,7 +169,7 @@ for msg in st.session_state.messages:
             # Display user-uploaded images inline in history
             st.image(msg["content"], width=350, caption="📎 Uploaded image")
 
-# ── IMAGE UPLOAD WIDGET ──────────────────────────────────────────────────────
+# IMAGE UPLOAD WIDGET 
 with st.expander("📎 Attach an image for analysis", expanded=False):
     uploaded_image = st.file_uploader(
         "Upload an image (PNG, JPG, JPEG, WEBP, GIF)",
@@ -184,7 +184,7 @@ with st.expander("📎 Attach an image for analysis", expanded=False):
 prompt = st.chat_input("Ask anything (or ask about the uploaded image)")
 
 if prompt:
-    # --- Encode uploaded image if present ---
+    #  Encode uploaded image if present 
     st.session_state.last_audio_path = None
     image_b64 = None
     image_media_type = None
@@ -252,7 +252,7 @@ if prompt:
                     "content": text
                 })
 
-            # 🔊 store audio path
+            # store audio path
             st.session_state.last_audio_path = audio if audio else None
 
             if text and not images:
@@ -278,7 +278,7 @@ if prompt:
             else:
                 st.session_state.last_image_context = None
 
-# ================= DOWNLOADS + MIC =================
+#  DOWNLOADS + MIC
 if st.session_state.messages:
     st.divider()
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -301,7 +301,7 @@ if st.session_state.messages:
                 txt += f"{m['role'].upper()}:\n{m['content']}\n\n"
         st.download_button("📋 Download TXT", txt, "conversation.txt")
 
-    # ⧉ COPY
+    # COPY
     with col3:
         clipboard_text = ""
         for m in st.session_state.messages:
@@ -339,7 +339,7 @@ if st.session_state.messages:
             st.session_state.last_audio_path = None
             st.rerun()
 
-    # 🎤 AUDIO PLAYER (FIXED - BYTES-BASED)
+    # AUDIO PLAYER (FIXED - BYTES-BASED)
     with col5:
         if st.session_state.last_audio_path:
             if st.button("🎤 Play Audio"):
@@ -348,7 +348,7 @@ if st.session_state.messages:
                     filename = st.session_state.last_audio_path.split("/")[-1]
                     audio_url = f"{FASTAPI_URL}/audio/{filename}"
                     
-                    # ✅ Fetch audio as bytes (fixes truncation issue)
+                    # Fetch audio as bytes (fixes truncation issue)
                     response = requests.get(audio_url, timeout=60)
                     if response.status_code == 200:
                         st.audio(BytesIO(response.content), format="audio/wav")
