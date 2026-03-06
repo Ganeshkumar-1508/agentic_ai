@@ -205,11 +205,21 @@ if prompt:
         raw_bytes = base64.b64decode(image_b64)
         pil_img = Image.open(io.BytesIO(raw_bytes))
         # We keep it as a PIL image reference; for history we'll store b64
+        os.makedirs("uploaded_images", exist_ok=True)
+
+        img_path = f"uploaded_images/upload_{len(st.session_state.messages)}.png"
+        pil_img.save(img_path)
+
         st.session_state.messages.append({
             "role": "user",
-            "type": "uploaded_image",
-            "content": pil_img   # PIL image renders fine with st.image
+            "type": "image",
+            "content": img_path
         })
+        #st.session_state.messages.append({
+        #    "role": "user",
+        #    "type": "uploaded_image",
+        #    "content": pil_img   # PIL image renders fine with st.image
+        #})
 
     with st.chat_message("user"):
         st.markdown(prompt)
