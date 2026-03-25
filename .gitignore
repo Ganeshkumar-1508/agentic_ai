@@ -21,3 +21,5 @@ chroma_cache/
 
 # Logs
 *.log
+# Metadata (generated)
+metadata/*.json
