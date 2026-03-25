@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+venv/
+.env
+
+# Data files
+data/*.csv
+data/*.xlsx
+data/*.pdf
+
+# Vector DB / Cache
+vector_store/
+chroma_cache/
+*.sqlite3
+
+# IDE
+.vscode/
+
+# Logs
+*.log

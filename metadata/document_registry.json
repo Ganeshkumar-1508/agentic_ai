@@ -1,0 +1,14 @@
+{
+    "558f8f4d7d342ac7f29d4558c496daeab40e53d9004f43555ba916c002a3e9e7": {
+        "filename": "Report generator (1).pdf",
+        "type": "pdf"
+    },
+    "432b6db7e07cbc78142867aeeb34318640bb0f236a9b41ea195ba6b4dcd223a3": {
+        "filename": "loan_approval_data.csv",
+        "type": "csv"
+    },
+    "2eb61181202c56c8a3c7709bdec43540141ab06cc97b1455ed8f198a61a8632a": {
+        "filename": "sample_employee_details.xlsx",
+        "type": "xlsx"
+    }
+}
