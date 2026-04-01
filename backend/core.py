@@ -235,3 +235,19 @@ Data Context:
 
 Answer:
 """
+def extract_code(raw: str) -> str:
+    """
+    Extracts python code from LLM response safely.
+    """
+    import re
+
+    match = re.search(r"```(?:python)?\s*(.*?)```", raw, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+
+    lines = raw.splitlines()
+    for line in lines:
+        if "result =" in line:
+            return line.strip()
+
+    return raw.strip()
